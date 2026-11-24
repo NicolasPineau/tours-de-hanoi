@@ -137,6 +137,8 @@
     from { transform: scale(0.96); opacity: 0.4; }
   }
 
+  .game-frame.is-restarting { animation: restart-flash 0.6s ease; }
+  @keyframes restart-flash { 0% { opacity: 0.2; transform: scale(0.98); } 100% { opacity: 1; transform: none; } }
   .game-frame {
     flex: none;
     width: 100%;
@@ -1495,8 +1497,8 @@ function setupEditor() {
       matchBrackets: true,
       autoCloseBrackets: true,
       extraKeys: {
-        "Ctrl-S": () => runGame(),
-        "Cmd-S": () => runGame(),
+        "Ctrl-S": () => restartByHand(),
+        "Cmd-S": () => restartByHand(),
         Tab: (editor) => editor.execCommand("insertSoftTab"),
       },
     });
@@ -2621,13 +2623,22 @@ resetButton.addEventListener("click", () => {
   resetAllFiles();
 });
 
-runButton.addEventListener("click", () => runGame());
+// Manual restart (button or Ctrl+S): the game restarts with a visible flash.
+function restartByHand() {
+  runGame();
+  playFrame.classList.remove("is-restarting");
+  void playFrame.offsetWidth;
+  playFrame.classList.add("is-restarting");
+  showPointsToast("Jeu relancé ↻");
+}
+
+runButton.addEventListener("click", restartByHand);
 clearConsoleButton.addEventListener("click", clearConsole);
 
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
-    runGame();
+    restartByHand();
   }
 });
 
