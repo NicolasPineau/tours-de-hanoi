@@ -210,6 +210,8 @@
   .mission__facts dd { margin: 0; line-height: 1.4; }
   .mission__notion { margin-left: 8px; color: var(--muted); font-size: 0.9rem; }
   .mission__check { color: var(--danger); line-height: 1.4; }
+  .mission__alert { margin: 0 0 12px; padding: 10px 14px; border: 2px solid var(--danger); border-radius: 12px; background: #fff1f0; color: var(--danger); line-height: 1.4; }
+  .mission__alert p { margin: 0 0 6px; }
   .mission__hint { padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: white; line-height: 1.5; }
 
   .file-link {
@@ -2030,6 +2032,8 @@ function iframeTestHarness(runId, stepCount) {
 /* ---------- Running the game. ---------- */
 
 let runId = 0;
+// The first syntax error of the student's code, or null.
+let syntaxProblem = null;
 let runTimer = null;
 let playFileStarts = [];
 
@@ -2112,16 +2116,28 @@ function runGame() {
   for (const syntaxError of prepared.syntaxErrors) {
     logToConsole("error", "SyntaxError : " + syntaxError.message, syntaxError);
   }
+  syntaxProblem = prepared.syntaxErrors[0] || null;
 
   const playDocument = buildGameDocument(prepared.scripts, "play", "");
   playFileStarts = playDocument.fileStarts;
   playFrame.srcdoc = playDocument.html;
 
+  editorRunStatus.textContent = "jeu relancé ✓";
+
+  // With a syntax error, the whole file cannot run: checking the missions would make
+  // them all fail, as if the student had lost everything. The progress is kept instead.
+  if (syntaxProblem) {
+    testFrame.srcdoc = "";
+    questsStatus.textContent = "";
+    ferrymanSay("Ton code contient une erreur de syntaxe (" + syntaxProblem.fileName + ", ligne " + syntaxProblem.line + ") : le jeu ne peut pas démarrer. Tes missions réussies ne sont pas perdues : corrige cette ligne et tout reviendra.", "warning");
+    renderQuests();
+    renderProgress();
+    return;
+  }
+
   const harness = "<script>(" + iframeTestHarness.toString() + ")(" + runId + ", " + STEPS.length + ");<\/script>";
   const testDocument = buildGameDocument(prepared.scripts, "test", harness);
   testFrame.srcdoc = testDocument.html;
-
-  editorRunStatus.textContent = "jeu relancé ✓";
   questsStatus.textContent = "le moine vérifie…";
 }
 
@@ -2221,9 +2237,10 @@ function handleTestResults(results) {
     }
   } else if (brokenSteps.length > 0) {
     const brokenStep = findStep(brokenSteps[0]);
-    ferrymanSay("Aïe ! « " + brokenStep.title + " » ne marche plus. Ton dernier changement a peut-être cassé quelque chose.", "warning");
+    ferrymanSay("Aïe ! Ton dernier changement a cassé « " + brokenStep.title + " ». Tes missions ne sont pas perdues : lis l'encadré rouge de la mission et regarde la console, elle indique la ligne en cause.", "warning");
   } else if (ferrymanMood === "warning") {
     ferrymanSay("Ouf, tout remarche ! On reprend là où on en était.", "");
+
   }
 
   renderQuests();
@@ -2231,15 +2248,28 @@ function handleTestResults(results) {
 }
 
 function renderProgress() {
-  const doneCount = latestResults.passed.filter((stepId) => !findStep(stepId).bonus).length;
-  const bonusDone = STEPS.some((step) => step.bonus && latestResults.passed.includes(step.id));
+  // Missions already done stay counted, even if a later change broke them for a moment.
+  const done = new Set([...latestResults.passed, ...celebratedSteps]);
+  const doneCount = [...done].filter((stepId) => !findStep(stepId).bonus).length;
+  const bonusDone = STEPS.some((step) => step.bonus && done.has(step.id));
   progressFill.style.width = (doneCount / MAIN_STEP_COUNT) * 100 + "%";
   progressLabel.textContent = doneCount + " / " + MAIN_STEP_COUNT + (bonusDone ? " ⭐" : "");
 }
 
+// The current mission is the first one never done: a mission that is broken again
+// does not send the student back to it, a warning is shown instead.
 function findCurrentStep() {
   const passed = new Set(latestResults.passed);
-  return STEPS.find((step) => !passed.has(step.id));
+  return STEPS.find((step) => !passed.has(step.id) && !celebratedSteps.has(step.id));
+}
+
+// A mission already done that does not pass any more (because of a later change).
+function findBrokenStep() {
+  if (syntaxProblem || !latestResults.failure) {
+    return undefined;
+  }
+  const step = findStep(latestResults.failure.step);
+  return step && celebratedSteps.has(step.id) ? step : undefined;
 }
 
 // The list under the game: one line per mission, without details.
@@ -2248,13 +2278,15 @@ function renderQuests() {
   const currentStep = findCurrentStep();
   questList.innerHTML = "";
 
+  const brokenStep = findBrokenStep();
   for (const step of STEPS) {
-    const isDone = passed.has(step.id);
+    const isDone = passed.has(step.id) || celebratedSteps.has(step.id);
+    const isBroken = brokenStep !== undefined && step.id === brokenStep.id;
     const isCurrent = currentStep !== undefined && step.id === currentStep.id;
     const item = document.createElement("li");
     item.className = "quest " + (isDone ? "quest--done" : isCurrent ? "quest--current" : "quest--locked");
 
-    const icon = isDone ? "✅" : isCurrent ? "👉" : step.bonus ? "⭐" : "🔒";
+    const icon = isBroken ? "⚠️" : isDone ? "✅" : isCurrent ? "👉" : step.bonus ? "⭐" : "🔒";
     const title = isDone || isCurrent ? escapeHtml(step.title) + (step.bonus ? " (bonus)" : "") : step.bonus ? "Mission bonus secrète" : "Mission secrète";
     const tag = isDone || isCurrent ? '<span class="quest__tag">' + escapeHtml(step.notion) + "</span>" : "";
     item.innerHTML =
@@ -2276,6 +2308,7 @@ function renderMission(step) {
       '<p class="mission__label">Toutes les missions sont finies</p>' +
       '<h2 class="mission__title">🎉 Le jeu est réparé !</h2>' +
       '<p class="mission__text">Dernier défi : finis l\'énigme avec 4 disques en 15 coups, sans l\'aide du moine.</p>';
+    addAlertBox();
     return;
   }
 
@@ -2291,6 +2324,7 @@ function renderMission(step) {
     "</dl>";
 
   missionElement.querySelector(".file-link").addEventListener("click", () => jumpToMission(step));
+  addAlertBox();
 
   const failure = latestResults.failure;
   if (failure && failure.step === step.id) {
@@ -2304,6 +2338,35 @@ function renderMission(step) {
   freeHint.className = "mission__hint";
   freeHint.innerHTML = "💡 <strong>Indice :</strong> " + formatText(step.freeHint);
   missionElement.append(freeHint, createJokerBox(step));
+}
+
+// A red box at the top of the mission card when the code does not run any more:
+// a syntax error, or a mission already done that a later change broke.
+function addAlertBox() {
+  const brokenStep = findBrokenStep();
+  if (!syntaxProblem && brokenStep === undefined) {
+    return;
+  }
+  const box = document.createElement("div");
+  box.className = "mission__alert";
+  const location = syntaxProblem || null;
+  if (syntaxProblem) {
+    box.innerHTML = "<p>⚠️ <strong>Erreur de syntaxe</strong> dans " + escapeHtml(syntaxProblem.fileName) + ", ligne " + syntaxProblem.line + " : " + escapeHtml(syntaxProblem.message) + "</p>" +
+      "<p>Tant qu'elle est là, le jeu ne peut pas démarrer. Tes missions réussies ne sont pas perdues.</p>";
+  } else {
+    box.innerHTML = "<p>⚠️ <strong>Ton dernier changement a cassé la mission " + brokenStep.id + " « " + escapeHtml(brokenStep.title) + " ».</strong></p>" +
+      "<p>🔍 Le moine a essayé : " + formatText(latestResults.failure.message) + "</p>" +
+      "<p>Tes missions réussies ne sont pas perdues. La console, sous l'éditeur, indique la ligne en cause : c'est souvent dans le code que tu viens d'écrire.</p>";
+  }
+  if (location) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "file-link";
+    button.textContent = "📍 Aller à la ligne " + location.line;
+    button.addEventListener("click", () => jumpToLine(location.fileName, location.line, location.column));
+    box.append(button);
+  }
+  missionElement.prepend(box);
 }
 
 // The joker part of the mission card: a button to spend a joker, or the joker hint once it is bought.
