@@ -1810,6 +1810,48 @@ function iframeTestHarness(runId, stepCount) {
     return tower;
   }
 
+  // The methods written in a later mission are also called by the display (afficherJeu).
+  // While an earlier mission is checked, an error in one of them must not make that
+  // earlier mission fail: the error is reported later, by the check of its own mission.
+  const ORIGINALS = {};
+  let stepBeingChecked = 0;
+  const OWNED_METHODS = [
+    { step: 6, name: "nbDisques", fallback: () => jeu.nbDisquesAuDepart },
+    { step: 7, name: "estGagne", fallback: () => false },
+    { step: 7, name: "coupsMinimum", getter: true, fallback: () => 0 },
+    { step: 8, name: "lignesDuGrandLivre", fallback: () => [] },
+    { step: 9, name: "mouvementsParDisque", fallback: () => ({}) },
+  ];
+  for (const method of (typeof Jeu === "function" ? OWNED_METHODS : [])) {
+    const descriptor = Object.getOwnPropertyDescriptor(Jeu.prototype, method.name);
+    if (!descriptor) {
+      continue;
+    }
+    const original = method.getter ? descriptor.get : descriptor.value;
+    if (typeof original !== "function") {
+      continue;
+    }
+    ORIGINALS[method.name] = original;
+    const guarded = function (...args) {
+      try {
+        return original.apply(this, args);
+      } catch (error) {
+        if (method.step > stepBeingChecked) {
+          return method.fallback();
+        }
+        throw error;
+      }
+    };
+    Object.defineProperty(Jeu.prototype, method.name, method.getter
+      ? { get: guarded, configurable: true }
+      : { value: guarded, writable: true, configurable: true });
+  }
+
+  // The source code written by the student for a method (not the guard around it).
+  function sourceOf(name) {
+    return String(ORIGINALS[name] || Jeu.prototype[name]);
+  }
+
   function sameObject(first, second) {
     const keys = Object.keys(first).sort();
     return keys.join() === Object.keys(second).sort().join() && keys.every((key) => first[key] === second[key]);
@@ -1917,7 +1959,7 @@ function iframeTestHarness(runId, stepCount) {
       if (jeu.nbDisques() !== 3) {
         fail("avec 2 disques à gauche et 1 à droite, `nbDisques()` renvoie " + jeu.nbDisques() + " au lieu de 3 : il faut compter les disques des 3 tours.");
       }
-      if (!String(Jeu.prototype.nbDisques).includes("reduce")) {
+      if (!sourceOf("nbDisques").includes("reduce")) {
         fail("le résultat est juste, mais cette mission demande d'utiliser `reduce`.");
       }
     },
@@ -1933,7 +1975,7 @@ function iframeTestHarness(runId, stepCount) {
       }
       playMoves(SOLUTION_3.slice(6));
       if (!jeu.estGagne()) {
-        const source = String(Jeu.prototype.estGagne);
+        const source = sourceOf("estGagne");
         const comparesTower = /tours\[2\]\s*(===|==|>=|<=|>|<)/.test(source) || /(===|==)\s*this\.tours\[2\]\s*[;)]/.test(source);
         fail("les 3 disques sont sur la tour de droite, mais `estGagne()` renvoie false." +
           (comparesTower ? " Attention : `this.tours[2]` est une tour (un objet `Tour`), pas un nombre. Comment savoir combien de disques elle contient ?" : ""));
@@ -1998,7 +2040,7 @@ function iframeTestHarness(runId, stepCount) {
           fail("après une partie parfaite à " + n + " disques, `mouvementsParDisque()` devrait renvoyer " + JSON.stringify(expected) + ". Elle renvoie " + JSON.stringify(counts) + ".");
         }
       }
-      if (!String(Jeu.prototype.mouvementsParDisque).includes("reduce")) {
+      if (!sourceOf("mouvementsParDisque").includes("reduce")) {
         fail("le résultat est juste, mais cette mission demande d'utiliser `reduce`.");
       }
     },
@@ -2029,6 +2071,7 @@ function iframeTestHarness(runId, stepCount) {
     const passed = [];
     let failure = null;
     for (let stepId = 1; stepId <= stepCount; stepId++) {
+      stepBeingChecked = stepId;
       try {
         await CHECKS[stepId]();
         passed.push(stepId);
