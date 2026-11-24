@@ -1,0 +1,2656 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Les Tours de Hanoï</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+<style>
+  :root {
+    --page: #f3ede2;
+    --panel: #fffaf2;
+    --ink: #23303b;
+    --muted: #6a7682;
+    --line: #e2d8c6;
+    --header: #1d2833;
+    --accent: #f07c35;
+    --accent-soft: #ffe7d6;
+    --success: #3f9a52;
+    --warning: #d9822b;
+    --danger: #cf4436;
+    --code-bg: #212121;
+    --code-panel: #191919;
+    --code-ink: #e6e6e6;
+    --code-muted: #8d8d8d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    font-family: "Fredoka", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--page);
+  }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: rgba(35, 48, 59, 0.08);
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+
+  /* Header. */
+  .app-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    padding: 10px 16px;
+    background: var(--header);
+    color: white;
+  }
+
+  .app-title { margin: 0; font-size: 1.3rem; font-weight: 600; }
+  .app-title small { margin-left: 8px; font-size: 0.9rem; font-weight: 400; color: #b9c4cf; }
+
+  .progress { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 0.95rem; }
+  .progress__track { width: 160px; height: 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+  .progress__fill { width: 0; height: 100%; background: var(--accent); transition: width 0.6s ease; }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .header-button {
+    font: inherit;
+    font-size: 0.95rem;
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    background: transparent;
+    color: white;
+    cursor: pointer;
+  }
+
+  .header-button:hover { background: rgba(255, 255, 255, 0.1); }
+  .header-button.is-confirming { background: var(--danger); border-color: var(--danger); }
+
+  /* Workspace. */
+  .workspace {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .game-column { min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
+
+  /* Ferryman. */
+  .ferryman { display: flex; align-items: flex-start; gap: 12px; }
+  .ferryman__avatar { flex: none; font-size: 46px; line-height: 1; }
+  .ferryman__avatar.is-happy { animation: hop 0.7s ease; }
+
+  @keyframes hop {
+    30% { transform: translateY(-12px) rotate(-8deg); }
+    60% { transform: translateY(0) rotate(5deg); }
+  }
+
+  .ferryman__bubble {
+    --bubble-border: var(--line);
+    position: relative;
+    flex: 1;
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 2px solid var(--bubble-border);
+    border-radius: 16px;
+    background: var(--panel);
+    font-size: 1.05rem;
+    line-height: 1.45;
+  }
+
+  .ferryman__bubble::before {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: -9px;
+    width: 14px;
+    height: 14px;
+    background: var(--panel);
+    border-left: 2px solid var(--bubble-border);
+    border-bottom: 2px solid var(--bubble-border);
+    transform: rotate(45deg);
+  }
+
+  .ferryman__bubble.is-success { --bubble-border: var(--success); animation: pop 0.35s ease-out; }
+  .ferryman__bubble.is-warning { --bubble-border: var(--warning); }
+
+  @keyframes pop {
+    from { transform: scale(0.96); opacity: 0.4; }
+  }
+
+  .game-frame {
+    flex: none;
+    width: 100%;
+    height: 580px;
+    border: none;
+    border-radius: 16px;
+    background: #eef8ff;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.06);
+  }
+
+
+  /* Guide: the three steps of the workshop. */
+  .guide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: guide;
+  }
+
+  .guide li {
+    counter-increment: guide;
+    padding: 8px 10px 8px 38px;
+    position: relative;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+
+  .guide li::before {
+    content: counter(guide);
+    position: absolute;
+    top: 8px;
+    left: 9px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--header);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+
+  /* Mission card. */
+  .mission {
+    padding: 14px 18px 16px;
+    border: 3px solid var(--accent);
+    border-radius: 18px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mission--done { border-color: var(--success); }
+  .mission p { margin: 0; }
+  .mission__label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+  .mission--done .mission__label { color: var(--success); }
+  .mission__title { margin: 0; font-size: 1.4rem; }
+  .mission__kind { color: var(--muted); }
+  .mission__facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: baseline; }
+  .mission__facts dt { font-weight: 600; white-space: nowrap; }
+  .mission__facts dd { margin: 0; line-height: 1.4; }
+  .mission__notion { margin-left: 8px; color: var(--muted); font-size: 0.9rem; }
+  .mission__check { color: var(--danger); line-height: 1.4; }
+  .mission__hint { padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: white; line-height: 1.5; }
+
+  .file-link {
+    font: inherit;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.9rem;
+    padding: 2px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .file-link:hover { background: white; }
+
+  @media (max-width: 600px) {
+    .guide { grid-template-columns: 1fr; }
+    .mission__facts { grid-template-columns: 1fr; }
+  }
+
+  /* Score and jokers. */
+  .score-strip { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 1rem; }
+  .score-strip__points strong { font-size: 1.15rem; }
+  .score-strip__jokers { display: flex; gap: 3px; font-size: 1.25rem; }
+  .joker-icon { display: inline-block; transition: opacity 0.3s, filter 0.3s; }
+  .joker-icon.is-used { opacity: 0.25; filter: grayscale(1); }
+  .score-strip + .progress { margin-left: 0; }
+
+  .score-card { padding: 12px 16px 14px; border: 2px solid var(--line); border-radius: 16px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+  .score-card h2 { margin: 0; font-size: 1.1rem; }
+  .score-card p { margin: 0; line-height: 1.4; }
+  .score-card__rules, .score-card__note { color: var(--muted); font-size: 0.92rem; }
+  .score-card__warning { color: var(--danger); font-weight: 500; }
+  .score-card__row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .score-card input { flex: 1; min-width: 180px; font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+  .score-card__code { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--code-bg); color: var(--code-ink); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .primary-button { font: inherit; font-weight: 600; padding: 7px 16px; border: none; border-radius: 999px; background: var(--accent); color: white; cursor: pointer; }
+  .primary-button:hover { filter: brightness(1.05); }
+
+  .joker-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 2px solid #8e6cd8; border-radius: 12px; background: #f3eefe; }
+  .joker-box p { line-height: 1.5; }
+  .joker-button { align-self: flex-start; font: inherit; font-weight: 600; padding: 5px 14px; border: none; border-radius: 999px; background: #8e6cd8; color: white; cursor: pointer; }
+  .joker-button.is-confirming { background: var(--danger); }
+  .joker-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .points-toast { position: fixed; right: 20px; bottom: 20px; z-index: 10; padding: 10px 16px; border-radius: 14px; background: var(--header); color: white; font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); animation: pop 0.3s ease-out; }
+
+  .teacher-space { position: fixed; inset: 0; z-index: 20; overflow: auto; padding: 24px 16px; background: var(--page); }
+  .teacher-space__panel { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  .teacher-space textarea { width: 100%; min-height: 160px; padding: 10px; border: none; border-radius: 12px; background: var(--code-bg); color: var(--code-ink); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  .teacher-table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }
+  .teacher-table th, .teacher-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 0.95rem; }
+  .teacher-table .number { text-align: right; font-variant-numeric: tabular-nums; }
+  .teacher-table .is-bad { color: var(--danger); font-weight: 600; }
+
+  /* Quests. */
+  .quests { padding: 12px 16px 14px; border: 2px solid var(--line); border-radius: 16px; background: var(--panel); }
+  .quests__header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .quests h2 { margin: 0 0 8px; font-size: 1.1rem; }
+  .quests__status { font-size: 0.85rem; color: var(--muted); }
+
+  .quest-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .quest { display: grid; grid-template-columns: 28px 1fr; gap: 2px 8px; padding: 6px 8px; border-radius: 10px; }
+  .quest__icon { text-align: center; }
+  .quest__title { font-weight: 500; }
+  .quest__tag { margin-left: 6px; font-size: 0.82rem; font-weight: 400; color: var(--muted); }
+  .quest--done { color: var(--muted); }
+  .quest--current { background: var(--accent-soft); }
+  .quest--locked { color: #b3aa9a; }
+
+
+  .hint-button {
+    font-weight: 500;
+    align-self: flex-start;
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 3px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: white;
+    cursor: pointer;
+  }
+
+
+  /* Code column. */
+  .code-column { min-height: 0; display: flex; flex-direction: column; border-radius: 16px; background: var(--code-bg); overflow: hidden; }
+
+  .tabs { display: flex; overflow-x: auto; background: var(--code-panel); }
+
+  .tab {
+    padding: 10px 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--code-muted);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tab:hover { color: var(--code-ink); }
+  .tab.is-active { color: var(--code-ink); background: var(--code-bg); border-bottom-color: var(--accent); }
+  .tab__modified { margin-left: 4px; color: var(--accent); }
+
+  .editor-status {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 12px;
+    background: var(--code-bg);
+    color: var(--code-muted);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    border-bottom: 1px solid #2c2c2c;
+  }
+
+  .editor { position: relative; flex: 1; min-height: 0; }
+  .editor .CodeMirror { height: 100%; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; line-height: 1.5; }
+  .editor .highlighted-line { background: rgba(240, 124, 53, 0.28); }
+  .editor .cm-s-material-darker .cm-comment { color: #9aa3ab; font-style: normal; }
+  .editor .mission-line { background: rgba(240, 124, 53, 0.12); box-shadow: inset 3px 0 0 var(--accent); }
+  .editor .mission-line .cm-comment { color: #ffb38a; font-weight: 600; }
+
+  .fallback-editor {
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    border: none;
+    resize: none;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+
+  /* Console. */
+  .console { flex: none; height: 180px; display: flex; flex-direction: column; border-top: 1px solid #333; background: var(--code-panel); }
+  .console__header { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; color: var(--code-muted); font-size: 0.85rem; }
+
+  .console__clear {
+    font: inherit;
+    padding: 1px 10px;
+    border: 1px solid #3a3a3a;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--code-muted);
+    cursor: pointer;
+  }
+
+  .console__output { flex: 1; overflow-y: auto; padding: 0 12px 8px; color: var(--code-ink); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; }
+  .console-line { padding: 3px 0; border-bottom: 1px solid #262626; white-space: pre-wrap; word-break: break-word; }
+  .console-line--error { color: #ff8a80; }
+  .console-line--warn { color: #ffd180; }
+  .console-line--system { color: var(--code-muted); font-style: italic; }
+
+  .console-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #82b1ff;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  /* Hidden test frame: it stays in the layout so its timers run normally. */
+  .test-frame { position: fixed; top: 0; left: -10000px; width: 760px; height: 600px; border: none; }
+
+  @media (max-width: 1000px) {
+    body { display: block; height: auto; }
+    .workspace { grid-template-columns: 1fr; }
+    .game-column { overflow: visible; }
+    .code-column { height: 720px; }
+  }
+
+  @media (max-width: 600px) {
+    .workspace { padding: 16px; }
+    .progress { margin-left: 0; }
+    .progress__track { width: 110px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1 class="app-title">🛕 Les Tours de Hanoï <small>Répare le jeu pour pouvoir y jouer</small></h1>
+  <div class="score-strip" aria-label="Score">
+    <span class="score-strip__points">⭐ <strong id="score-points">0</strong> pts</span>
+    <span class="score-strip__jokers" id="score-jokers" title="Jokers restants"></span>
+  </div>
+  <div class="progress" aria-label="Progression">
+    <div class="progress__track"><div id="progress-fill" class="progress__fill"></div></div>
+    <span id="progress-label">0 / 9</span>
+  </div>
+  <div class="header-actions">
+    <button id="run-button" class="header-button" type="button" title="Ctrl+S ou Cmd+S">▶ Relancer le jeu</button>
+    <button id="reset-button" class="header-button" type="button">↺ Code d'origine</button>
+  </div>
+</header>
+
+<main class="workspace">
+  <section class="game-column">
+    <div class="ferryman">
+      <div id="ferryman-avatar" class="ferryman__avatar" aria-hidden="true">🧘</div>
+      <div id="ferryman-bubble" class="ferryman__bubble" aria-live="polite"></div>
+    </div>
+
+    <ol class="guide">
+      <li><strong>Essaie le jeu</strong> et repère ce qui ne marche pas.</li>
+      <li><strong>Corrige le code</strong> de <code>jeu.js</code>, dans l'éditeur.</li>
+      <li>Le jeu <strong>se relance tout seul</strong> : le moine te dit si c'est réparé.</li>
+    </ol>
+
+    <section id="mission" class="mission" aria-live="polite"></section>
+
+    <iframe id="play-frame" class="game-frame" sandbox="allow-scripts" title="Le jeu des Tours de Hanoï"></iframe>
+
+    <section id="score-card" class="score-card"></section>
+
+    <section class="quests">
+      <div class="quests__header">
+        <h2>Toutes les missions</h2>
+        <span id="quests-status" class="quests__status"></span>
+      </div>
+      <ol id="quest-list" class="quest-list"></ol>
+    </section>
+  </section>
+
+  <section class="code-column">
+    <nav id="file-tabs" class="tabs" aria-label="Fichiers du jeu"></nav>
+    <div class="editor-status">
+      <span id="editor-file"></span>
+      <span id="editor-run-status"></span>
+    </div>
+    <div id="editor" class="editor"></div>
+    <div class="console">
+      <div class="console__header">
+        <span>Console</span>
+        <button id="clear-console" class="console__clear" type="button">Effacer</button>
+      </div>
+      <div id="console-output" class="console__output"></div>
+    </div>
+  </section>
+</main>
+
+<section id="teacher-space" class="teacher-space" hidden></section>
+
+<iframe id="test-frame" class="test-frame" sandbox="allow-scripts" title="Vérifications" aria-hidden="true" tabindex="-1"></iframe>
+
+<!-- ============================================================
+     Original files of the game, as the students first see them.
+     ============================================================ -->
+
+<textarea id="original-index.html" hidden>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Les Tours de Hanoï</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&amp;display=swap">
+</head>
+<body>
+  <main class="jeu">
+
+    <!-- L'écran titre, caché quand la partie commence. -->
+    <section id="ecran-titre" class="ecran-titre">
+      <p class="ecran-titre__emojis">🛕 🧘 🛕</p>
+      <h1>Les Tours de Hanoï</h1>
+      <p>Dans le temple de Bénarès, un moine doit faire passer une pile de disques d'or<br>
+         de la tour de gauche à la tour de droite.</p>
+      <p>On ne déplace qu'un seul disque à la fois : celui du haut d'une tour.<br>
+         On ne pose <strong>jamais</strong> un disque sur un disque plus petit.</p>
+      <button id="bouton-commencer" class="bouton bouton--principal" type="button">Commencer</button>
+    </section>
+
+    <!-- La zone de jeu, visible quand la partie commence. -->
+    <div id="zone-de-jeu" class="zone-de-jeu" hidden>
+      <section class="reglages">
+        <label>Disques :
+          <select id="choix-disques">
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+          </select>
+        </label>
+        <button id="bouton-recommencer" class="bouton" type="button">↺ Recommencer</button>
+        <button id="bouton-moine" class="bouton" type="button">🧘 Laisse le moine faire</button>
+      </section>
+
+      <!-- Le temple : 3 tours. Clique sur une tour, puis sur une autre, pour déplacer un disque. -->
+      <section id="temple" class="temple">
+        <div class="tour" data-index="0"><div class="tour__tige"></div><div id="tour-0" class="tour__disques"></div><p class="tour__nom">gauche</p></div>
+        <div class="tour" data-index="1"><div class="tour__tige"></div><div id="tour-1" class="tour__disques"></div><p class="tour__nom">milieu</p></div>
+        <div class="tour" data-index="2"><div class="tour__tige"></div><div id="tour-2" class="tour__disques"></div><p class="tour__nom">droite</p></div>
+      </section>
+
+      <section class="barre">
+        <p class="barre__compteur">Coups : <strong id="compteur-coups">0</strong></p>
+        <p id="integrite" class="barre__integrite"></p>
+        <p id="parole-moine" class="barre__parole"></p>
+      </section>
+
+      <section class="livre">
+        <h2>📜 Le grand livre</h2>
+        <ol id="grand-livre"></ol>
+      </section>
+    </div>
+
+    <!-- L'écran de fin, par-dessus le jeu. -->
+    <section id="ecran-fin" class="ecran-fin" hidden>
+      <div class="ecran-fin__carte">
+        <p id="message-fin" class="ecran-fin__message"></p>
+        <ul id="statistiques" class="ecran-fin__stats"></ul>
+        <button id="bouton-rejouer" class="bouton bouton--principal" type="button">Rejouer</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Le code du jeu. -->
+  <script src="aides.js"></script>
+  <script src="jeu.js"></script>
+
+  <!-- L'apparence du jeu. -->
+  <style>
+    :root {
+      --ciel-haut: #fde7c4;
+      --ciel-bas: #fff8ec;
+      --pierre: #c9a87c;
+      --pierre-foncee: #8f6b45;
+      --bois: #7a4b26;
+      --papier: #fffaf0;
+      --encre: #2d2a26;
+      --gris: #6b6258;
+      --orange: #e07a2f;
+      --rouge: #c8433a;
+      --vert: #3f9a52;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Fredoka", system-ui, sans-serif;
+      color: var(--encre);
+      background: linear-gradient(var(--ciel-haut), var(--ciel-bas));
+    }
+
+    .jeu {
+      position: relative;
+      max-width: 760px;
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    /* Écran titre. */
+    .ecran-titre {
+      padding: 32px 16px;
+      text-align: center;
+    }
+
+    .ecran-titre__emojis {
+      margin: 0;
+      font-size: 3rem;
+      letter-spacing: 12px;
+    }
+
+    .ecran-titre h1 {
+      margin: 8px 0 12px;
+      font-size: 2.2rem;
+    }
+
+    .ecran-titre .bouton {
+      margin-top: 16px;
+    }
+
+    /* Boutons. */
+    .bouton {
+      padding: 9px 20px;
+      border: none;
+      border-radius: 999px;
+      background: var(--papier);
+      color: var(--encre);
+      font: inherit;
+      font-weight: 600;
+      box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+    }
+
+    .bouton:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .bouton:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .bouton--principal {
+      background: var(--orange);
+      color: white;
+      font-size: 1.15rem;
+    }
+
+    .zone-de-jeu {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Réglages. */
+    .reglages {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reglages select {
+      font: inherit;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 2px solid var(--pierre);
+      background: var(--papier);
+    }
+
+    /* Le temple et ses 3 tours. */
+    .temple {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 18px 12px 0;
+      border-radius: 18px 18px 8px 8px;
+      background: linear-gradient(#f6dcb3, #edcb98);
+      border-bottom: 14px solid var(--pierre-foncee);
+    }
+
+    .tour {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      min-height: 250px;
+      padding-top: 40px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .tour:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .tour--choisie {
+      background: rgba(255, 255, 255, 0.45);
+      outline: 3px dashed var(--orange);
+    }
+
+    .tour__tige {
+      position: absolute;
+      bottom: 30px;
+      width: 10px;
+      height: 200px;
+      border-radius: 6px 6px 0 0;
+      background: var(--bois);
+    }
+
+    /* Les disques sont empilés de bas en haut. */
+    .tour__disques {
+      position: relative;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 2px;
+      width: 100%;
+    }
+
+    .tour__nom {
+      margin: 6px 0 8px;
+      color: var(--gris);
+      font-size: 0.9rem;
+    }
+
+    .disque {
+      width: 0;
+      height: 22px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 22px;
+      text-align: center;
+      box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18);
+      transition: transform 0.15s ease;
+    }
+
+    /* Le disque du haut de la tour choisie se soulève. */
+    .tour--choisie .disque:last-child {
+      transform: translateY(-26px);
+      box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18), 0 8px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Sous le temple. */
+    .barre {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 16px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: var(--papier);
+    }
+
+    .barre p {
+      margin: 0;
+    }
+
+    .barre__integrite.is-alerte {
+      color: var(--rouge);
+      font-weight: 600;
+    }
+
+    .barre__parole {
+      flex: 1 1 100%;
+      min-height: 1.4em;
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    .livre {
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: var(--papier);
+    }
+
+    .livre h2 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+    }
+
+    .livre ol {
+      margin: 0;
+      padding-left: 1.6em;
+      columns: 2;
+      font-size: 0.92rem;
+    }
+
+    /* Écran de fin. */
+    .ecran-fin {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(45, 42, 38, 0.45);
+    }
+
+    .ecran-fin__carte {
+      max-width: 440px;
+      padding: 24px;
+      border-radius: 20px;
+      background: var(--papier);
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .ecran-fin__message {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .ecran-fin__stats {
+      margin: 0 0 16px;
+      padding: 0;
+      list-style: none;
+      color: var(--gris);
+    }
+
+    @media (max-width: 520px) {
+      .tour {
+        min-height: 200px;
+      }
+
+      .tour__tige {
+        height: 150px;
+      }
+
+      .disque {
+        height: 18px;
+        line-height: 18px;
+      }
+
+      .livre ol {
+        columns: 1;
+      }
+    }
+  </style>
+</body>
+</html>
+</textarea>
+
+<script type="text/plain" id="original-aides.js">
+// =====================================================================
+// AIDES : petites fonctions utiles au jeu (jeu.js).
+// Tu n'as pas besoin de modifier ce fichier, mais tu peux le lire.
+// =====================================================================
+
+// Crée l'élément de la page qui dessine un disque.
+// Plus le disque est grand, plus il est large. Sa couleur vient de disque.couleur.
+function creerElementDisque(disque) {
+  const element = document.createElement("div");
+  element.className = "disque";
+  element.style.width = 16 + disque.taille * 12 + "%";
+  element.style.background = disque.couleur;
+  element.textContent = disque.taille ?? "";
+  return element;
+}
+
+// Transforme un coup en phrase.
+// Exemple : { taille: 2, depart: 0, arrivee: 2 } donne « Disque 2 : gauche → droite ».
+function decrireCoup(coup) {
+  return `Disque ${coup.taille} : ${NOMS_DES_TOURS[coup.depart]} → ${NOMS_DES_TOURS[coup.arrivee]}`;
+}
+
+// Affiche une petite phrase du moine, sous le temple.
+function moineDit(phrase) {
+  document.querySelector("#parole-moine").textContent = phrase;
+}
+
+// Attend un moment. S'utilise avec await, dans une fonction async :
+//   await attendre(500);   // attend une demi-seconde
+function attendre(millisecondes) {
+  return new Promise((reprendre) => setTimeout(reprendre, millisecondes));
+}
+</script>
+
+<script type="text/plain" id="original-jeu.js">
+// =====================================================================
+// LES TOURS DE HANOÏ : tout le jeu est dans ce fichier.
+// Il se lit de haut en bas, en 5 parties :
+//   1. Les données   2. Les classes   3. L'affichage   4. Les actions   5. Les boutons
+// Quelques petites fonctions utiles sont rangées dans aides.js.
+// Les missions sont marquées 🧩 (du code à écrire) ou 🐞 (un bug à trouver).
+// =====================================================================
+
+
+// =====================================================================
+// 1. LES DONNÉES
+// =====================================================================
+
+// La couleur de chaque disque : le disque 1 a la couleur de la case 0, le disque 2 celle de la case 1…
+const COULEURS = ["#e74c3c", "#f39c12", "#f1c40f", "#2ecc71", "#3498db", "#9b59b6", "#e84393"];
+
+// Le nom des 3 tours, dans l'ordre : la tour 0 est à gauche, la tour 2 à droite.
+const NOMS_DES_TOURS = ["gauche", "milieu", "droite"];
+
+// Le nombre de disques au début d'une partie.
+const NB_DISQUES_AU_DEPART = 3;
+
+// Quand le moine joue tout seul, il attend un peu entre deux coups (en millisecondes).
+const PAUSE_DU_MOINE_MS = 450;
+
+// Vaut true quand le joueur a cliqué sur « Commencer ».
+let jeuDemarre = false;
+
+
+// =====================================================================
+// 2. LES CLASSES
+// =====================================================================
+
+// Un disque d'or. Exemple : new Disque(2) crée le disque de taille 2.
+class Disque {
+  constructor(taille) {
+    // 🧩 MISSION 1 : range dans l'objet (avec this) :
+    //   - sa taille : celle reçue en paramètre ;
+    //   - sa couleur : la case taille - 1 du tableau COULEURS (partie 1).
+  }
+}
+
+// Une tour : une pile de disques. Le bas de la tour est la case 0 du tableau,
+// le haut de la tour est la dernière case.
+class Tour {
+  constructor(nom) {
+    this.nom = nom;
+    this.disques = [];
+  }
+
+  // Renvoie true si la tour n'a aucun disque.
+  estVide() {
+    return this.disques.length === 0;
+  }
+
+  // Le disque du haut de la tour (sans l'enlever), ou null si la tour est vide.
+  // On l'utilise sans parenthèses : tour.sommet
+  get sommet() {
+    // 🧩 MISSION 2 : écris ici le code du getter.
+    // 1) Si la tour est vide, renvoie null.
+    // 2) Sinon, renvoie le disque de la dernière case du tableau this.disques.
+    return null;
+  }
+
+  // Pose un disque en haut de la tour.
+  empiler(disque) {
+    this.disques.push(disque);
+  }
+
+  // 🐞 MISSION 4 : le bug se cache dans cette méthode.
+  // Enlève le disque du haut de la tour, et le renvoie.
+  depiler() {
+    return this.disques.shift();
+  }
+
+  // 🐞 MISSION 5 : le bug se cache dans cette méthode.
+  // Renvoie true si on a le droit de poser ce disque sur la tour.
+  peutRecevoir(disque) {
+    if (this.estVide()) {
+      return true;
+    }
+    return disque.taille > this.sommet.taille;
+  }
+}
+
+// Une partie : les 3 tours et la liste des coups joués.
+class Jeu {
+  constructor(nbDisques) {
+    this.nbDisquesAuDepart = nbDisques;
+    this.tours = [new Tour("gauche"), new Tour("milieu"), new Tour("droite")];
+    // L'historique : un objet { taille, depart, arrivee } par coup joué.
+    this.historique = [];
+    // Au début, tous les disques sont sur la tour de gauche, du plus grand au plus petit.
+    for (let taille = nbDisques; taille >= 1; taille--) {
+      this.tours[0].empiler(new Disque(taille));
+    }
+  }
+
+  // Le nombre de coups joués. On l'utilise sans parenthèses : jeu.nbCoups
+  get nbCoups() {
+    return this.historique.length;
+  }
+
+  // 🐞 MISSION 3 : le bug se cache dans cette méthode.
+  // Déplace le disque du haut de la tour depart vers la tour arrivee (0, 1 ou 2).
+  // Renvoie "" si le coup est joué, ou une phrase qui explique pourquoi il est interdit.
+  deplacer(depart, arrivee) {
+    const tourDeDepart = this.tours[depart];
+    const tourDArrivee = tours[arrivee];
+
+    if (tourDeDepart.estVide()) {
+      return "Il n'y a aucun disque sur cette tour.";
+    }
+    if (!tourDArrivee.peutRecevoir(tourDeDepart.sommet)) {
+      return "Sacrilège ! On ne pose jamais un disque sur un disque plus petit.";
+    }
+
+    const disque = tourDeDepart.depiler();
+    tourDArrivee.empiler(disque);
+    this.historique.push({ taille: disque.taille, depart: depart, arrivee: arrivee });
+    return "";
+  }
+
+  // Compte les disques des 3 tours. Si un disque disparaît, le moine le verra !
+  nbDisques() {
+    // 🧩 MISSION 6 : avec reduce, additionne le nombre de disques de chaque tour de this.tours.
+    // Le total commence à 0. Le nombre de disques d'une tour : tour.disques.length
+    return 0;
+  }
+
+  // 🧩 MISSION 7 : écris le code de estGagne() et de coupsMinimum.
+  // La partie est gagnée quand la tour de droite (this.tours[2]) contient tous les disques.
+  estGagne() {
+    return false;
+  }
+
+  // La prophétie : avec n disques, il faut au minimum 2 puissance n, moins 1, coups.
+  // En JavaScript, « 2 puissance n » s'écrit 2 ** n.
+  get coupsMinimum() {
+    return 0;
+  }
+
+  // 🐞 MISSION 8 : le bug se cache dans cette méthode.
+  // Renvoie un tableau de phrases : une par coup joué, pour le grand livre.
+  lignesDuGrandLivre() {
+    const lignes = this.historique.forEach((coup) => decrireCoup(coup));
+    return lignes;
+  }
+
+  // Compte combien de fois chaque disque a bougé.
+  // Exemple pour 3 disques et 7 coups : { 1: 4, 2: 2, 3: 1 }.
+  mouvementsParDisque() {
+    // 🧩 MISSION 9 : avec reduce, fabrique cet objet à partir de this.historique.
+    // On part d'un objet vide {}. Pour chaque coup, on ajoute 1 au compteur du disque coup.taille
+    // (s'il n'a pas encore de compteur, il vaut 0).
+    return {};
+  }
+}
+
+// 🧩 MISSION 10 : (bonus) apprends au moine à résoudre l'énigme tout seul.
+// Ajoute dans le tableau coups, dans l'ordre, les coups qui déplacent n disques
+// de la tour depart vers la tour arrivee, en s'aidant de la tour intermediaire.
+// Un coup s'écrit [depart, arrivee]. Exemple : coups.push([0, 2]);
+// Le secret du moine, pour déplacer n disques :
+//   1) s'il n'y a aucun disque (n vaut 0), il n'y a rien à faire ;
+//   2) il déplace les n - 1 disques du dessus vers la tour intermediaire ;
+//   3) il déplace le grand disque vers la tour arrivee ;
+//   4) il déplace les n - 1 disques de la tour intermediaire vers la tour arrivee.
+// Pour déplacer les n - 1 disques… la fonction s'appelle elle-même !
+function resoudre(n, depart, arrivee, intermediaire, coups) {
+}
+
+// La partie en cours. Tout l'écran est dessiné à partir de cet objet.
+let jeu = new Jeu(NB_DISQUES_AU_DEPART);
+
+
+// =====================================================================
+// 3. L'AFFICHAGE
+// =====================================================================
+
+// Les éléments de la page que le jeu modifie (leurs id sont dans index.html).
+const ecranTitre = document.querySelector("#ecran-titre");
+const zoneDeJeu = document.querySelector("#zone-de-jeu");
+const temple = document.querySelector("#temple");
+const compteurCoups = document.querySelector("#compteur-coups");
+const integrite = document.querySelector("#integrite");
+const grandLivre = document.querySelector("#grand-livre");
+const ecranFin = document.querySelector("#ecran-fin");
+const messageFin = document.querySelector("#message-fin");
+const statistiques = document.querySelector("#statistiques");
+const choixDisques = document.querySelector("#choix-disques");
+const boutonCommencer = document.querySelector("#bouton-commencer");
+const boutonRecommencer = document.querySelector("#bouton-recommencer");
+const boutonMoine = document.querySelector("#bouton-moine");
+const boutonRejouer = document.querySelector("#bouton-rejouer");
+
+// La tour choisie par le joueur (0, 1 ou 2), ou null si aucune.
+let tourChoisie = null;
+
+// Vaut true pendant que le moine joue tout seul.
+let moineAuTravail = false;
+
+// Redessine tout l'écran à partir des données de `jeu`.
+function afficherJeu() {
+  ecranTitre.hidden = jeuDemarre;
+  zoneDeJeu.hidden = !jeuDemarre;
+  for (let index = 0; index < jeu.tours.length; index++) {
+    afficherTour(index);
+  }
+  compteurCoups.textContent = jeu.nbCoups;
+  afficherIntegrite();
+  afficherGrandLivre();
+  afficherFin();
+  boutonMoine.disabled = moineAuTravail;
+  boutonRecommencer.disabled = moineAuTravail;
+  choixDisques.disabled = moineAuTravail;
+}
+
+// Dessine les disques d'une tour, du bas vers le haut.
+function afficherTour(index) {
+  const elementDisques = document.querySelector("#tour-" + index);
+  elementDisques.innerHTML = "";
+  for (const disque of jeu.tours[index].disques) {
+    elementDisques.append(creerElementDisque(disque));
+  }
+  elementDisques.parentElement.classList.toggle("tour--choisie", tourChoisie === index);
+}
+
+// Vérifie qu'aucun disque n'a disparu.
+function afficherIntegrite() {
+  const nombre = jeu.nbDisques();
+  const alerte = nombre !== jeu.nbDisquesAuDepart;
+  integrite.textContent = `Disques : ${nombre} / ${jeu.nbDisquesAuDepart}` + (alerte ? " ⚠ Un disque a disparu !" : " ✔");
+  integrite.classList.toggle("is-alerte", alerte);
+}
+
+// Remplit le grand livre : une ligne par coup joué.
+function afficherGrandLivre() {
+  grandLivre.innerHTML = "";
+  const lignes = jeu.lignesDuGrandLivre();
+  if (!Array.isArray(lignes)) {
+    return;
+  }
+  for (const ligne of lignes) {
+    const elementLigne = document.createElement("li");
+    elementLigne.textContent = ligne;
+    grandLivre.append(elementLigne);
+  }
+}
+
+// Montre l'écran de fin quand la partie est gagnée, et le cache sinon.
+function afficherFin() {
+  const gagne = jeu.estGagne();
+  ecranFin.hidden = !gagne;
+  if (!gagne) {
+    return;
+  }
+
+  if (jeu.nbCoups === jeu.coupsMinimum) {
+    messageFin.textContent = `La prophétie est accomplie en ${jeu.nbCoups} coups : c'est le minimum ! 🏅`;
+  } else {
+    messageFin.textContent = `Bravo, tu as fini en ${jeu.nbCoups} coups. La prophétie en demandait ${jeu.coupsMinimum}…`;
+  }
+
+  statistiques.innerHTML = "";
+  const mouvements = jeu.mouvementsParDisque();
+  for (const taille of Object.keys(mouvements)) {
+    const element = document.createElement("li");
+    element.textContent = `Disque ${taille} : ${mouvements[taille]} mouvement(s)`;
+    statistiques.append(element);
+  }
+}
+
+
+// =====================================================================
+// 4. LES ACTIONS : ce qui se passe quand le joueur clique
+// =====================================================================
+
+// Bouton « Commencer » : cache l'écran titre et montre le temple.
+function commencerPartie() {
+  jeuDemarre = true;
+  afficherJeu();
+}
+
+// Boutons « Recommencer » et « Rejouer », et changement du nombre de disques.
+function recommencerPartie() {
+  jeu = new Jeu(Number(choixDisques.value));
+  tourChoisie = null;
+  moineDit("");
+  afficherJeu();
+}
+
+// Clic sur une tour : le premier clic choisit la tour de départ, le second la tour d'arrivée.
+function cliquerSurTour(index) {
+  if (moineAuTravail || jeu.estGagne()) {
+    return;
+  }
+
+  if (tourChoisie === null) {
+    if (jeu.tours[index].sommet === null) {
+      moineDit("Il n'y a aucun disque sur cette tour.");
+    } else {
+      tourChoisie = index;
+      moineDit("");
+    }
+  } else if (tourChoisie === index) {
+    // Un deuxième clic sur la même tour : on repose le disque.
+    tourChoisie = null;
+  } else {
+    const probleme = jeu.deplacer(tourChoisie, index);
+    moineDit(probleme);
+    tourChoisie = null;
+  }
+
+  afficherJeu();
+}
+
+// Bouton « Laisse le moine faire » : le moine joue tout seul, coup par coup.
+async function laisserLeMoineFaire() {
+  if (moineAuTravail) {
+    return;
+  }
+  recommencerPartie();
+
+  const coups = [];
+  resoudre(jeu.nbDisquesAuDepart, 0, 2, 1, coups);
+  if (coups.length === 0) {
+    moineDit("Je ne sais pas encore résoudre l'énigme tout seul… (c'est la mission bonus)");
+    return;
+  }
+
+  moineAuTravail = true;
+  moineDit("Regarde bien…");
+  afficherJeu();
+  for (const coup of coups) {
+    await attendre(PAUSE_DU_MOINE_MS);
+    jeu.deplacer(coup[0], coup[1]);
+    afficherJeu();
+  }
+  moineAuTravail = false;
+  moineDit("");
+  afficherJeu();
+}
+
+
+// =====================================================================
+// 5. LES BOUTONS : on relie chaque bouton de la page à son action
+// =====================================================================
+
+boutonCommencer.addEventListener("click", commencerPartie);
+
+// Clic dans le temple : on cherche la tour cliquée.
+temple.addEventListener("click", (evenement) => {
+  const tourCliquee = evenement.target.closest(".tour");
+  if (tourCliquee === null) {
+    return;
+  }
+  cliquerSurTour(Number(tourCliquee.dataset.index));
+});
+
+boutonRecommencer.addEventListener("click", recommencerPartie);
+choixDisques.addEventListener("change", recommencerPartie);
+boutonRejouer.addEventListener("click", recommencerPartie);
+boutonMoine.addEventListener("click", laisserLeMoineFaire);
+
+// Premier dessin de l'écran, au chargement de la page.
+afficherJeu();
+</script>
+
+<!-- ============================================================
+     Libraries: code editor and JavaScript parser.
+     ============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/acorn@8.11.3/dist/acorn.js"></script>
+
+<!-- ============================================================
+     The workshop: editor, game runner, checks and ferryman.
+     ============================================================ -->
+<script>
+"use strict";
+
+// Prefix of every key saved in the browser.
+const STORAGE_PREFIX = "tours-de-hanoi.v1.";
+
+// Delay after the last key press before the game restarts, in milliseconds.
+const AUTO_RUN_DELAY_MS = 900;
+
+// After this number of turns in one loop, the loop is stopped.
+const MAX_LOOP_TURNS = 200000;
+
+// The files of the game, in the order of the tabs.
+const FILES = [
+  { name: "index.html", mode: "htmlmixed", readOnly: true },
+  { name: "aides.js", mode: "javascript", readOnly: true },
+  { name: "jeu.js", mode: "javascript", readOnly: false },
+];
+
+// The steps of the workshop. A step is done when its check passes in the test frame.
+// A step with bonus: true is optional: it is not counted in the progress bar.
+const STEPS = [
+  {
+    id: 1,
+    title: "Les disques invisibles",
+    kind: "hole",
+    notion: "Classes",
+    file: "jeu.js",
+    symptom: "Clique sur « Commencer » : les 3 tours sont là, mais aucun disque n'apparaît.",
+    freeHint: "Le constructeur de `Disque` reçoit la taille, mais il ne la range nulle part. Dans un constructeur, on range une valeur dans l'objet avec `this.nom = valeur;`.",
+    jokerHint: "Deux lignes : `this.taille = taille;` puis `this.couleur = COULEURS[taille - 1];` (le disque 1 prend la couleur de la case 0).",
+    success: "Ô mes disques d'or, vous voilà ! Clique sur la tour de gauche : le disque du haut devrait se soulever…",
+  },
+  {
+    id: 2,
+    title: "Le sommet introuvable",
+    kind: "hole",
+    notion: "Getters",
+    file: "jeu.js",
+    symptom: "Clique sur la tour de gauche : le moine dit qu'il n'y a aucun disque, alors qu'elle est pleine.",
+    freeHint: "Le jeu demande `tour.sommet` pour savoir quel disque soulever, mais le getter renvoie toujours `null`. Le haut de la tour, c'est la dernière case du tableau `this.disques`. Et il existe déjà une méthode pour savoir si la tour est vide.",
+    jokerHint: "`if (this.estVide()) { return null; }` puis `return this.disques[this.disques.length - 1];`. Attention : on regarde le disque du haut, on ne l'enlève pas.",
+    success: "Le disque se soulève ! Maintenant, clique sur une autre tour pour l'y poser.",
+  },
+  {
+    id: 3,
+    title: "Le moine distrait",
+    kind: "bug",
+    notion: "this",
+    file: "jeu.js",
+    symptom: "Choisis une tour, puis une autre : rien ne bouge. Regarde la console, sous l'éditeur.",
+    freeHint: "La console dit que `tours` n'existe pas. Les tours sont rangées dans l'objet `Jeu`. Dans une méthode, comment parle-t-on des propriétés de l'objet ? Regarde la ligne juste au-dessus.",
+    jokerHint: "Dans `deplacer`, il faut écrire `this.tours[arrivee]`, comme pour `this.tours[depart]` : sans `this`, JavaScript cherche une variable `tours`, qui n'existe pas.",
+    success: "Ça bouge ! Mais… regarde bien quel disque s'envole.",
+  },
+  {
+    id: 4,
+    title: "La tour sans fond",
+    kind: "bug",
+    notion: "Tableaux : pop et shift",
+    file: "jeu.js",
+    symptom: "Déplace un disque : c'est le grand disque du bas qui part, et pas le petit du haut.",
+    freeHint: "Le haut de la tour, c'est la fin du tableau `disques`. Quelle méthode de tableau enlève la dernière case ? Et laquelle enlève la première ?",
+    jokerHint: "`shift()` enlève la première case du tableau : le bas de la tour. Il faut `pop()`, qui enlève la dernière : le haut de la tour.",
+    success: "Le bon disque s'envole. Mais j'ai vu un grand disque posé sur un petit : c'est un sacrilège !",
+  },
+  {
+    id: 5,
+    title: "Le sacrilège",
+    kind: "bug",
+    notion: "Conditions",
+    file: "jeu.js",
+    symptom: "Le jeu laisse poser un grand disque sur un petit, et refuse de poser un petit disque sur un grand. C'est l'inverse de la règle !",
+    freeHint: "Lis `peutRecevoir` à voix haute : « la tour accepte le disque si sa taille est … que celle du sommet ». Quel est le bon signe ?",
+    jokerHint: "Le disque qu'on pose doit être plus petit que le sommet : `disque.taille < this.sommet.taille`.",
+    success: "La règle sacrée est respectée. Mais… sous le temple, je lis qu'il manque des disques. Qui les a volés ?",
+  },
+  {
+    id: 6,
+    title: "Le disque volé",
+    kind: "hole",
+    notion: "reduce",
+    file: "jeu.js",
+    symptom: "Sous le temple, le moine affiche « Disques : 0 / 3 ⚠ Un disque a disparu ! », alors que tous les disques sont là.",
+    freeHint: "`nbDisques()` doit additionner le nombre de disques des 3 tours. `reduce` parcourt `this.tours` en gardant un total, qui commence à 0 : à chaque tour, on renvoie le total plus le nombre de disques de cette tour.",
+    jokerHint: "`return this.tours.reduce((total, tour) => total + tour.disques.length, 0);`",
+    success: "Ouf, aucun disque n'a été volé. Essaie maintenant de finir l'énigme…",
+  },
+  {
+    id: 7,
+    title: "La prophétie",
+    kind: "hole",
+    notion: "Conditions et calculs",
+    file: "jeu.js",
+    symptom: "Mets tous les disques sur la tour de droite : la partie ne se termine jamais.",
+    freeHint: "La partie est gagnée quand la tour de droite (`this.tours[2]`) contient autant de disques qu'au départ (`this.nbDisquesAuDepart`). Et pour la prophétie : en JavaScript, « 2 puissance n » s'écrit `2 ** n`.",
+    jokerHint: "`estGagne()` : `return this.tours[2].disques.length === this.nbDisquesAuDepart;`. `coupsMinimum` : `return 2 ** this.nbDisquesAuDepart - 1;`",
+    success: "La prophétie est accomplie ! Il ne me reste qu'à écrire tes coups dans le grand livre…",
+  },
+  {
+    id: 8,
+    title: "Le grand livre",
+    kind: "bug",
+    notion: "map et forEach",
+    file: "jeu.js",
+    symptom: "Sous le temple, le grand livre reste vide, même après plusieurs coups.",
+    freeHint: "`lignesDuGrandLivre()` doit renvoyer un tableau de phrases. Que renvoie `forEach` ? Et `map` ?",
+    jokerHint: "`forEach` parcourt le tableau, mais ne renvoie rien (`undefined`). `map` fabrique un nouveau tableau avec ce que renvoie la fonction : remplace `forEach` par `map`.",
+    success: "Le grand livre est à jour. Une dernière chose : je voudrais savoir combien de fois chaque disque a bougé.",
+  },
+  {
+    id: 9,
+    title: "Les statistiques du moine",
+    kind: "hole",
+    notion: "reduce vers un objet",
+    file: "jeu.js",
+    symptom: "Gagne une partie : sous le message de victoire, les statistiques des disques sont vides.",
+    freeHint: "`reduce` peut fabriquer un objet au lieu d'un nombre : on part de `{}`. Pour chaque coup, on ajoute 1 au compteur du disque `coup.taille`, puis on renvoie l'objet.",
+    jokerHint: "`return this.historique.reduce((compte, coup) => { compte[coup.taille] = (compte[coup.taille] || 0) + 1; return compte; }, {});` Avec des accolades, n'oublie pas le `return compte;`.",
+    success: "Regarde : le plus petit disque bouge un coup sur deux ! C'est le secret des moines. Le jeu est réparé, merci ! 🎉 Il reste une mission bonus, si tu oses…",
+  },
+  {
+    id: 10,
+    bonus: true,
+    title: "Le moine automatique",
+    kind: "hole",
+    notion: "Récursivité",
+    file: "jeu.js",
+    symptom: "Clique sur « Laisse le moine faire » : le moine ne sait pas encore résoudre l'énigme tout seul.",
+    freeHint: "Suis les 4 étapes du commentaire de la mission 10. Pour les étapes 2 et 4, `resoudre` s'appelle elle-même avec `n - 1` disques, en changeant le rôle des tours. L'étape 1 est indispensable : sans elle, la fonction s'appelle à l'infini.",
+    jokerHint: "`if (n === 0) { return; }` puis `resoudre(n - 1, depart, intermediaire, arrivee, coups);` puis `coups.push([depart, arrivee]);` puis `resoudre(n - 1, intermediaire, arrivee, depart, coups);`",
+    success: "Tu as percé le secret du temple : une fonction qui s'appelle elle-même ! Choisis 7 disques et regarde-moi travailler. 🧘",
+  },
+];
+
+const INTRO_MESSAGE = "Bienvenue au temple, je suis le moine ! Mon jeu des Tours de Hanoï est tout cassé, et toi seul peux le réparer. Ta première mission est juste en dessous.";
+const WELCOME_BACK_MESSAGE = "Te revoilà ! Ta mission du moment est juste en dessous.";
+
+// The missions that count in the progress bar (the bonus mission does not).
+const MAIN_STEP_COUNT = STEPS.filter((step) => !step.bonus).length;
+
+// Points: a mission done gives points, a joker costs points.
+const POINTS = { mission: 100, joker: 40 };
+
+// Number of jokers for the whole game.
+const JOKER_COUNT = 4;
+
+// The score is saved encrypted, so a student cannot change it by hand.
+const SCORE_SECRET = "th#tours-hanoi!2026/benares~K7pW2";
+const TEACHER_CODE_PREFIX = "TH1-";
+
+const KIND_LABELS = {
+  bug: "🐞 Un bug à trouver : le code est écrit, mais il contient une erreur.",
+  hole: "🧩 Du code à écrire, à l'endroit marqué dans `jeu.js`.",
+};
+
+const playFrame = document.getElementById("play-frame");
+const testFrame = document.getElementById("test-frame");
+const tabsElement = document.getElementById("file-tabs");
+const editorElement = document.getElementById("editor");
+const editorFileLabel = document.getElementById("editor-file");
+const editorRunStatus = document.getElementById("editor-run-status");
+const consoleOutput = document.getElementById("console-output");
+const clearConsoleButton = document.getElementById("clear-console");
+const questList = document.getElementById("quest-list");
+const missionElement = document.getElementById("mission");
+const scorePointsElement = document.getElementById("score-points");
+const scoreJokersElement = document.getElementById("score-jokers");
+const scoreCardElement = document.getElementById("score-card");
+const teacherSpaceElement = document.getElementById("teacher-space");
+const questsStatus = document.getElementById("quests-status");
+const progressFill = document.getElementById("progress-fill");
+const progressLabel = document.getElementById("progress-label");
+const ferrymanAvatar = document.getElementById("ferryman-avatar");
+const ferrymanBubble = document.getElementById("ferryman-bubble");
+const runButton = document.getElementById("run-button");
+const resetButton = document.getElementById("reset-button");
+
+/* ---------- Browser storage (it may be blocked, so every access is protected). ---------- */
+
+function readStorage(key, fallback) {
+  try {
+    const value = localStorage.getItem(STORAGE_PREFIX + key);
+    return value === null ? fallback : value;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + key, value);
+  } catch (error) {
+    // Nothing to do: the work is simply not saved.
+  }
+}
+
+function removeStorage(key) {
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + key);
+  } catch (error) {
+    // Nothing to do.
+  }
+}
+
+/* ---------- Files. ---------- */
+
+const originalContents = {};
+const contents = {};
+
+for (const file of FILES) {
+  const source = document.getElementById("original-" + file.name);
+  const text = source.tagName === "TEXTAREA" ? source.value : source.textContent.replace(/^\n/, "");
+  originalContents[file.name] = text;
+  contents[file.name] = file.readOnly ? text : readStorage("file." + file.name, text);
+}
+
+function findFile(fileName) {
+  return FILES.find((file) => file.name === fileName);
+}
+
+function isModified(fileName) {
+  return contents[fileName] !== originalContents[fileName];
+}
+
+/* ---------- Editor. ---------- */
+
+let activeFileName = readStorage("activeFile", "jeu.js");
+if (!findFile(activeFileName)) {
+  activeFileName = "jeu.js";
+}
+
+let codeMirror = null;
+const codeMirrorDocuments = {};
+let fallbackTextarea = null;
+
+function setupEditor() {
+  if (typeof window.CodeMirror === "function") {
+    codeMirror = window.CodeMirror(editorElement, {
+      theme: "material-darker",
+      lineNumbers: true,
+      indentUnit: 2,
+      tabSize: 2,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      extraKeys: {
+        "Ctrl-S": () => runGame(),
+        "Cmd-S": () => runGame(),
+        Tab: (editor) => editor.execCommand("insertSoftTab"),
+      },
+    });
+    for (const file of FILES) {
+      const documentForFile = window.CodeMirror.Doc(contents[file.name], file.mode);
+      documentForFile.on("change", () => {
+        handleEdit(file.name, documentForFile.getValue());
+        markMissionLines(documentForFile);
+      });
+      markMissionLines(documentForFile);
+      codeMirrorDocuments[file.name] = documentForFile;
+    }
+    return;
+  }
+
+  // Without CodeMirror (for example offline), a simple text area is used.
+  fallbackTextarea = document.createElement("textarea");
+  fallbackTextarea.className = "fallback-editor";
+  fallbackTextarea.spellcheck = false;
+  fallbackTextarea.addEventListener("input", () => handleEdit(activeFileName, fallbackTextarea.value));
+  fallbackTextarea.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      fallbackTextarea.setRangeText("  ", fallbackTextarea.selectionStart, fallbackTextarea.selectionEnd, "end");
+      handleEdit(activeFileName, fallbackTextarea.value);
+    }
+  });
+  editorElement.append(fallbackTextarea);
+}
+
+// Highlights the comments that mark a mission, so they are easy to find.
+function markMissionLines(documentForFile) {
+  documentForFile.eachLine((lineHandle) => {
+    documentForFile.removeLineClass(lineHandle, "wrap", "mission-line");
+    if (/\/\/ (🧩|🐞) MISSION \d+ :/.test(lineHandle.text)) {
+      documentForFile.addLineClass(lineHandle, "wrap", "mission-line");
+    }
+  });
+}
+
+function showFile(fileName) {
+  const file = findFile(fileName);
+  activeFileName = fileName;
+  writeStorage("activeFile", fileName);
+
+  if (codeMirror) {
+    codeMirror.swapDoc(codeMirrorDocuments[fileName]);
+    codeMirror.setOption("readOnly", file.readOnly);
+    codeMirror.refresh();
+  } else {
+    fallbackTextarea.value = contents[fileName];
+    fallbackTextarea.readOnly = file.readOnly;
+  }
+
+  editorFileLabel.textContent = file.readOnly ? fileName + " · 🔒 lecture seule" : fileName;
+  renderTabs();
+}
+
+function setFileContent(fileName, text) {
+  if (codeMirror) {
+    codeMirrorDocuments[fileName].setValue(text);
+  } else {
+    contents[fileName] = text;
+    if (fileName === activeFileName) {
+      fallbackTextarea.value = text;
+    }
+  }
+}
+
+function handleEdit(fileName, text) {
+  contents[fileName] = text;
+  if (!findFile(fileName).readOnly) {
+    writeStorage("file." + fileName, text);
+  }
+  renderTabs();
+  scheduleRun();
+}
+
+function renderTabs() {
+  tabsElement.innerHTML = "";
+  for (const file of FILES) {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab" + (file.name === activeFileName ? " is-active" : "");
+    tab.textContent = (file.readOnly ? "🔒 " : "") + file.name;
+    if (isModified(file.name)) {
+      const marker = document.createElement("span");
+      marker.className = "tab__modified";
+      marker.textContent = "●";
+      marker.title = "Fichier modifié";
+      tab.append(marker);
+    }
+    tab.addEventListener("click", () => showFile(file.name));
+    tabsElement.append(tab);
+  }
+}
+
+// Opens the file of a mission and scrolls to its marker comment, for example "MISSION 2 :".
+function jumpToMission(step, shouldFocus = true) {
+  const lines = contents[step.file].split("\n");
+  const markerIndex = lines.findIndex((line) => line.includes("MISSION " + step.id + " :"));
+  if (markerIndex === -1) {
+    showFile(step.file);
+    return;
+  }
+  jumpToLine(step.file, markerIndex + 1, 1, shouldFocus);
+}
+
+function jumpToLine(fileName, line, column, shouldFocus = true) {
+  showFile(fileName);
+  if (!codeMirror) {
+    return;
+  }
+  const lineIndex = Math.max(0, line - 1);
+  codeMirror.setCursor({ line: lineIndex, ch: Math.max(0, (column || 1) - 1) });
+  // Show the line near the top of the editor, with a little space above it.
+  codeMirror.scrollTo(null, Math.max(0, codeMirror.heightAtLine(lineIndex, "local") - 40));
+  if (shouldFocus) {
+    codeMirror.focus();
+  }
+  codeMirror.addLineClass(lineIndex, "background", "highlighted-line");
+  setTimeout(() => codeMirror.removeLineClass(lineIndex, "background", "highlighted-line"), 2500);
+}
+
+/* ---------- Protection against infinite loops. ---------- */
+
+const LOOP_TYPES = new Set(["ForStatement", "ForInStatement", "ForOfStatement", "WhileStatement", "DoWhileStatement"]);
+const LOOP_GUARD_CALL = "__passeurLoopGuard();";
+
+function visitTree(node, callback) {
+  callback(node);
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        if (child && typeof child.type === "string") {
+          visitTree(child, callback);
+        }
+      }
+    } else if (value && typeof value.type === "string") {
+      visitTree(value, callback);
+    }
+  }
+}
+
+// Adds a guard call at the start of every loop body. Line numbers do not change.
+function addLoopGuards(tree, code) {
+  const insertions = [];
+  visitTree(tree, (node) => {
+    if (!LOOP_TYPES.has(node.type)) {
+      return;
+    }
+    if (node.body.type === "BlockStatement") {
+      insertions.push({ at: node.body.start + 1, text: LOOP_GUARD_CALL });
+    } else {
+      insertions.push({ at: node.body.start, text: "{" + LOOP_GUARD_CALL });
+      insertions.push({ at: node.body.end, text: "}" });
+    }
+  });
+
+  insertions.sort((first, second) => second.at - first.at);
+  let guardedCode = code;
+  for (const insertion of insertions) {
+    guardedCode = guardedCode.slice(0, insertion.at) + insertion.text + guardedCode.slice(insertion.at);
+  }
+  return guardedCode;
+}
+
+// Checks the syntax of each script and protects its loops.
+function prepareScripts() {
+  const scripts = {};
+  const syntaxErrors = [];
+
+  for (const file of FILES) {
+    if (file.mode !== "javascript") {
+      continue;
+    }
+    const code = contents[file.name];
+    if (typeof window.acorn === "undefined") {
+      scripts[file.name] = code;
+      continue;
+    }
+    try {
+      const tree = window.acorn.parse(code, { ecmaVersion: "latest", sourceType: "script", locations: true });
+      scripts[file.name] = addLoopGuards(tree, code);
+    } catch (error) {
+      scripts[file.name] = "";
+      syntaxErrors.push({
+        fileName: file.name,
+        message: String(error.message).replace(/\s*\(\d+:\d+\)$/, ""),
+        line: error.loc ? error.loc.line : 1,
+        column: error.loc ? error.loc.column + 1 : 1,
+      });
+    }
+  }
+  return { scripts, syntaxErrors };
+}
+
+/* ---------- Code that runs inside the game frames. ---------- */
+
+// Runs first in each game frame: it sends console messages and errors to the workshop.
+function iframePrelude(channel, runId, maxLoopTurns) {
+  function send(type, payload) {
+    parent.postMessage(Object.assign({ passeur: true, channel, runId, type }, payload), "*");
+  }
+
+  function format(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    try {
+      const text = JSON.stringify(value);
+      return text === undefined ? String(value) : text;
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  for (const level of ["log", "info", "warn", "error"]) {
+    const original = console[level].bind(console);
+    console[level] = (...values) => {
+      original(...values);
+      send("console", { level, text: values.map(format).join(" ") });
+    };
+  }
+
+  window.addEventListener("error", (event) => {
+    send("error", { message: event.message, line: event.lineno, column: event.colno, stack: event.error && event.error.stack ? String(event.error.stack) : "" });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    send("error", { message: "Uncaught (in promise) " + (reason && reason.message ? reason.message : String(reason)), line: 0, column: 0 });
+  });
+
+  let loopTurns = 0;
+  let resetPlanned = false;
+  window.__passeurLoopGuard = () => {
+    loopTurns += 1;
+    if (!resetPlanned) {
+      resetPlanned = true;
+      setTimeout(() => {
+        loopTurns = 0;
+        resetPlanned = false;
+      }, 0);
+    }
+    if (loopTurns > maxLoopTurns) {
+      loopTurns = 0;
+      throw new Error("Boucle infinie arrêtée : une boucle a fait plus de " + maxLoopTurns + " tours. Vérifie sa condition de fin.");
+    }
+  };
+}
+
+// Runs last in the hidden test frame: it checks each step in order and sends the results.
+function iframeTestHarness(runId, stepCount) {
+  // The shortest solution with 3 disks: [from, to] for each move.
+  const SOLUTION_3 = [[0, 2], [0, 1], [2, 1], [0, 2], [1, 0], [1, 2], [0, 2]];
+
+  class StepFailure extends Error {}
+
+  function fail(message) {
+    throw new StepFailure(message);
+  }
+
+  function newRound(nbDisks) {
+    jeu = new Jeu(nbDisks);
+    tourChoisie = null;
+    moineAuTravail = false;
+    jeuDemarre = true;
+    afficherJeu();
+  }
+
+  function sizes(tower) {
+    return tower.disques.map((disk) => disk.taille).join(",");
+  }
+
+  // A reference solver, used only by the tests.
+  function referenceMoves(n, from, to, via, moves) {
+    if (n === 0) {
+      return moves;
+    }
+    referenceMoves(n - 1, from, via, to, moves);
+    moves.push([from, to]);
+    referenceMoves(n - 1, via, to, from, moves);
+    return moves;
+  }
+
+  function playMoves(moves) {
+    moves.forEach((move, index) => {
+      let problem;
+      try {
+        problem = jeu.deplacer(move[0], move[1]);
+      } catch (error) {
+        fail("au coup n°" + (index + 1) + ", le jeu plante : « " + error.message + " ».");
+      }
+      if (problem) {
+        fail("au coup n°" + (index + 1) + " (" + NOMS_DES_TOURS[move[0]] + " → " + NOMS_DES_TOURS[move[1]] + "), le jeu refuse un coup permis : « " + problem + " ».");
+      }
+    });
+  }
+
+  function towerWith(diskSizes) {
+    const tower = new Tour("test");
+    for (const size of diskSizes) {
+      tower.empiler(new Disque(size));
+    }
+    return tower;
+  }
+
+  function sameObject(first, second) {
+    const keys = Object.keys(first).sort();
+    return keys.join() === Object.keys(second).sort().join() && keys.every((key) => first[key] === second[key]);
+  }
+
+  const CHECKS = {
+    1: () => {
+      const disk = new Disque(3);
+      if (disk.taille !== 3) {
+        fail("j'ai créé `new Disque(3)`, mais sa taille vaut « " + disk.taille + " » au lieu de 3.");
+      }
+      if (disk.couleur !== COULEURS[2]) {
+        fail("le disque 3 doit avoir la couleur de la case 2 du tableau COULEURS (« " + COULEURS[2] + " »). Sa couleur vaut « " + disk.couleur + " ».");
+      }
+      newRound(3);
+      const drawn = Array.from(document.querySelectorAll("#tour-0 .disque"));
+      if (drawn.length !== 3 || drawn.some((element) => element.style.width === "")) {
+        fail("au début de la partie, je devrais voir 3 disques sur la tour de gauche.");
+      }
+    },
+
+    2: () => {
+      if (new Tour("vide").sommet !== null) {
+        fail("pour une tour vide, `sommet` doit valoir null.");
+      }
+      const tower = towerWith([3, 1]);
+      const top = tower.sommet;
+      if (!top || top.taille !== 1) {
+        fail("sur une tour avec les disques 3 (en bas) et 1 (en haut), `sommet` doit être le disque 1. J'obtiens : " + (top ? "le disque " + top.taille : top) + ".");
+      }
+      if (tower.disques.length !== 2) {
+        fail("`sommet` doit regarder le disque du haut, sans l'enlever de la tour.");
+      }
+      newRound(3);
+      cliquerSurTour(0);
+      if (tourChoisie !== 0) {
+        fail("j'ai cliqué sur la tour de gauche, pleine, mais elle n'est pas choisie.");
+      }
+    },
+
+    3: () => {
+      newRound(3);
+      try {
+        jeu.deplacer(0, 2);
+      } catch (error) {
+        fail("j'ai déplacé un disque de la tour de gauche vers la tour de droite, et le jeu plante : « " + error.message + " ».");
+      }
+      if (jeu.tours[0].disques.length !== 2 || jeu.tours[2].disques.length !== 1) {
+        fail("après un coup de gauche à droite, il devrait rester 2 disques à gauche et 1 à droite.");
+      }
+      if (jeu.nbCoups !== 1) {
+        fail("après un coup, le compteur de coups devrait valoir 1.");
+      }
+    },
+
+    4: () => {
+      const tower = towerWith([3, 2, 1]);
+      const removed = tower.depiler();
+      if (!removed || removed.taille !== 1) {
+        fail("sur une tour avec les disques 3, 2, 1 (du bas vers le haut), `depiler()` doit enlever le disque 1, celui du haut. Elle a enlevé : " + (removed ? "le disque " + removed.taille : removed) + ".");
+      }
+      if (sizes(tower) !== "3,2") {
+        fail("après `depiler()`, la tour devrait garder les disques 3 et 2.");
+      }
+      newRound(3);
+      jeu.deplacer(0, 2);
+      if (sizes(jeu.tours[2]) !== "1") {
+        fail("au premier coup, c'est le petit disque 1 qui doit arriver sur la tour de droite.");
+      }
+    },
+
+    5: () => {
+      const cases = [
+        { tower: [], disk: 3, allowed: true, label: "sur une tour vide, on peut poser le disque 3" },
+        { tower: [3], disk: 1, allowed: true, label: "on peut poser le disque 1 sur le disque 3" },
+        { tower: [3, 2], disk: 1, allowed: true, label: "on peut poser le disque 1 sur le disque 2" },
+        { tower: [1], disk: 3, allowed: false, label: "on ne peut pas poser le disque 3 sur le disque 1" },
+        { tower: [2], disk: 3, allowed: false, label: "on ne peut pas poser le disque 3 sur le disque 2" },
+      ];
+      for (const testCase of cases) {
+        const result = towerWith(testCase.tower).peutRecevoir(new Disque(testCase.disk));
+        if (result !== testCase.allowed) {
+          fail(testCase.label + " : `peutRecevoir` devrait renvoyer " + testCase.allowed + ", mais elle renvoie " + result + ".");
+        }
+      }
+      newRound(3);
+      jeu.deplacer(0, 1);
+      const problem = jeu.deplacer(0, 1);
+      if (!problem || jeu.tours[1].disques.length !== 1) {
+        fail("j'ai essayé de poser le disque 2 sur le disque 1 : le jeu doit refuser ce coup.");
+      }
+    },
+
+    6: () => {
+      for (const n of [3, 5]) {
+        newRound(n);
+        if (jeu.nbDisques() !== n) {
+          fail("au début d'une partie à " + n + " disques, `nbDisques()` renvoie " + jeu.nbDisques() + " au lieu de " + n + ".");
+        }
+      }
+      newRound(3);
+      jeu.tours[0].disques = [new Disque(3), new Disque(2)];
+      jeu.tours[1].disques = [];
+      jeu.tours[2].disques = [new Disque(1)];
+      if (jeu.nbDisques() !== 3) {
+        fail("avec 2 disques à gauche et 1 à droite, `nbDisques()` renvoie " + jeu.nbDisques() + " au lieu de 3 : il faut compter les disques des 3 tours.");
+      }
+      if (!String(Jeu.prototype.nbDisques).includes("reduce")) {
+        fail("le résultat est juste, mais cette mission demande d'utiliser `reduce`.");
+      }
+    },
+
+    7: () => {
+      newRound(3);
+      if (jeu.estGagne()) {
+        fail("au début de la partie, `estGagne()` doit renvoyer false.");
+      }
+      playMoves(SOLUTION_3.slice(0, 6));
+      if (jeu.estGagne()) {
+        fail("après 6 coups, il reste un disque à gauche : `estGagne()` doit encore renvoyer false.");
+      }
+      playMoves(SOLUTION_3.slice(6));
+      if (!jeu.estGagne()) {
+        fail("les 3 disques sont sur la tour de droite, mais `estGagne()` renvoie false.");
+      }
+      afficherJeu();
+      if (document.querySelector("#ecran-fin").hidden) {
+        fail("la partie est gagnée, mais l'écran de victoire ne s'affiche pas.");
+      }
+      newRound(3);
+      jeu.tours[1].disques = jeu.tours[0].disques;
+      jeu.tours[0].disques = [];
+      if (jeu.estGagne()) {
+        fail("tous les disques sont sur la tour du milieu : ce n'est pas gagné, il faut qu'ils soient sur la tour de droite.");
+      }
+      for (const n of [3, 5]) {
+        newRound(n);
+        const expected = 2 ** n - 1;
+        if (jeu.coupsMinimum !== expected) {
+          fail("avec " + n + " disques, `coupsMinimum` devrait valoir " + expected + ". Il vaut " + jeu.coupsMinimum + ".");
+        }
+      }
+    },
+
+    8: () => {
+      newRound(3);
+      playMoves(SOLUTION_3);
+      const lines = jeu.lignesDuGrandLivre();
+      if (!Array.isArray(lines)) {
+        fail("`lignesDuGrandLivre()` doit renvoyer un tableau. Elle renvoie « " + lines + " ».");
+      }
+      if (lines.length !== 7 || lines.some((line) => typeof line !== "string" || line.includes("undefined"))) {
+        fail("après 7 coups, le grand livre devrait avoir 7 phrases, comme « Disque 1 : gauche → droite ».");
+      }
+      afficherJeu();
+      if (document.querySelectorAll("#grand-livre li").length !== 7) {
+        fail("après 7 coups, le grand livre devrait afficher 7 lignes.");
+      }
+    },
+
+    9: () => {
+      for (const n of [3, 4]) {
+        newRound(n);
+        playMoves(referenceMoves(n, 0, 2, 1, []));
+        const counts = jeu.mouvementsParDisque();
+        const expected = {};
+        for (let size = 1; size <= n; size++) {
+          expected[size] = 2 ** (n - size);
+        }
+        if (!counts || typeof counts !== "object" || !sameObject(counts, expected)) {
+          fail("après une partie parfaite à " + n + " disques, `mouvementsParDisque()` devrait renvoyer " + JSON.stringify(expected) + ". Elle renvoie " + JSON.stringify(counts) + ".");
+        }
+      }
+      if (!String(Jeu.prototype.mouvementsParDisque).includes("reduce")) {
+        fail("le résultat est juste, mais cette mission demande d'utiliser `reduce`.");
+      }
+    },
+
+    10: () => {
+      for (const n of [1, 3, 5]) {
+        const moves = [];
+        try {
+          resoudre(n, 0, 2, 1, moves);
+        } catch (error) {
+          const endless = error instanceof RangeError;
+          fail("avec " + n + " disque(s), `resoudre` plante : « " + error.message + " »." + (endless ? " La fonction s'appelle sans fin : as-tu écrit l'étape 1 (si n vaut 0, on s'arrête) ?" : ""));
+        }
+        const expected = 2 ** n - 1;
+        if (moves.length !== expected) {
+          fail("pour " + n + " disque(s), le moine devrait jouer " + expected + " coups. `resoudre` en a donné " + moves.length + ".");
+        }
+        newRound(n);
+        playMoves(moves);
+        if (jeu.tours[2].disques.length !== n) {
+          fail("j'ai joué les coups donnés par `resoudre` pour " + n + " disques, mais ils ne sont pas tous arrivés sur la tour de droite.");
+        }
+      }
+    },
+  };
+
+  (async () => {
+    const passed = [];
+    let failure = null;
+    for (let stepId = 1; stepId <= stepCount; stepId++) {
+      try {
+        await CHECKS[stepId]();
+        passed.push(stepId);
+      } catch (error) {
+        const message = error instanceof StepFailure
+          ? error.message
+          : "le jeu plante pendant mon essai : « " + error.message + " ».";
+        failure = { step: stepId, message };
+        break;
+      }
+    }
+    parent.postMessage({ passeur: true, channel: "test", runId, type: "results", passed, failure }, "*");
+  })();
+}
+
+/* ---------- Running the game. ---------- */
+
+let runId = 0;
+let runTimer = null;
+let playFileStarts = [];
+
+function buildGameDocument(scripts, channel, extraScript) {
+  let html = contents["index.html"];
+
+  html = html.replace(/<link rel="stylesheet" href="style\.css">/, () => "<style>\n" + contents["style.css"] + "\n</style>");
+
+  html = html.replace(/<script src="([\w-]+\.js)"><\/script>/g, (tag, fileName) => {
+    if (!(fileName in scripts)) {
+      // The comment opener is split, because it must not appear in this inline script.
+      return "<" + "!-- " + fileName + " not found --" + ">";
+    }
+    return "<script>/*@file:" + fileName + "*/\n" + scripts[fileName] + "\n<\/script>";
+  });
+
+  const prelude = "<script>(" + iframePrelude.toString() + ")(" + JSON.stringify(channel) + ", " + runId + ", " + MAX_LOOP_TURNS + ");<\/script>";
+  html = html.replace(/<head>/i, (head) => head + prelude);
+
+  if (extraScript) {
+    html = html.replace(/<\/body>/i, (bodyEnd) => extraScript + bodyEnd);
+  }
+
+  // Remember where each file starts, to turn a line of the page into a line of a file.
+  const fileStarts = [];
+  for (const fileName of Object.keys(scripts)) {
+    const markerIndex = html.indexOf("/*@file:" + fileName + "*/");
+    if (markerIndex !== -1) {
+      const markerLine = html.slice(0, markerIndex).split("\n").length;
+      fileStarts.push({ fileName, firstLine: markerLine + 1 });
+    }
+  }
+  fileStarts.sort((first, second) => first.firstLine - second.firstLine);
+
+  return { html, fileStarts };
+}
+
+function locateLine(pageLine, column) {
+  let location = null;
+  for (const start of playFileStarts) {
+    if (pageLine >= start.firstLine) {
+      location = { fileName: start.fileName, line: pageLine - start.firstLine + 1, column };
+    }
+  }
+  if (location && location.line > contents[location.fileName].split("\n").length) {
+    return null;
+  }
+  return location;
+}
+
+// Finds the file and line of an error, using the stack when the error line is outside the files.
+function locateError(data) {
+  const direct = locateLine(data.line, data.column);
+  if (direct) {
+    return direct;
+  }
+  const positions = String(data.stack || "").matchAll(/:(\d+):(\d+)\)?\s*$/gm);
+  for (const position of positions) {
+    const location = locateLine(Number(position[1]), Number(position[2]));
+    if (location) {
+      return location;
+    }
+  }
+  return null;
+}
+
+function scheduleRun() {
+  clearTimeout(runTimer);
+  editorRunStatus.textContent = "modifié…";
+  runTimer = setTimeout(runGame, AUTO_RUN_DELAY_MS);
+}
+
+function runGame() {
+  clearTimeout(runTimer);
+  runId += 1;
+  clearConsole();
+  logSystem("Jeu relancé.");
+
+  const prepared = prepareScripts();
+  for (const syntaxError of prepared.syntaxErrors) {
+    logToConsole("error", "SyntaxError : " + syntaxError.message, syntaxError);
+  }
+
+  const playDocument = buildGameDocument(prepared.scripts, "play", "");
+  playFileStarts = playDocument.fileStarts;
+  playFrame.srcdoc = playDocument.html;
+
+  const harness = "<script>(" + iframeTestHarness.toString() + ")(" + runId + ", " + STEPS.length + ");<\/script>";
+  const testDocument = buildGameDocument(prepared.scripts, "test", harness);
+  testFrame.srcdoc = testDocument.html;
+
+  editorRunStatus.textContent = "jeu relancé ✓";
+  questsStatus.textContent = "le moine vérifie…";
+}
+
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.passeur !== true || data.runId !== runId) {
+    return;
+  }
+  if (data.channel === "play" && event.source === playFrame.contentWindow) {
+    if (data.type === "console") {
+      logToConsole(data.level, data.text, null);
+    } else if (data.type === "error") {
+      logToConsole("error", data.message, locateError(data));
+    }
+  }
+  if (data.channel === "test" && event.source === testFrame.contentWindow && data.type === "results") {
+    handleTestResults(data);
+  }
+});
+
+/* ---------- Console. ---------- */
+
+function clearConsole() {
+  consoleOutput.innerHTML = "";
+}
+
+function logSystem(text) {
+  const line = document.createElement("div");
+  line.className = "console-line console-line--system";
+  line.textContent = text;
+  consoleOutput.append(line);
+}
+
+function logToConsole(level, text, location) {
+  const line = document.createElement("div");
+  line.className = "console-line console-line--" + level;
+  line.textContent = (level === "error" ? "❌ " : level === "warn" ? "⚠️ " : "") + text;
+
+  if (location) {
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "console-link";
+    link.textContent = location.fileName + ", ligne " + location.line;
+    link.addEventListener("click", () => jumpToLine(location.fileName, location.line, location.column));
+    line.append(" — ", link);
+  }
+
+  consoleOutput.append(line);
+  consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+/* ---------- Quests and ferryman. ---------- */
+
+let celebratedSteps = new Set(JSON.parse(readStorage("celebrated", "[]")));
+let latestResults = { passed: [...celebratedSteps].sort((first, second) => first - second), failure: null };
+let ferrymanMood = "";
+
+function findStep(stepId) {
+  return STEPS.find((step) => step.id === stepId);
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Turns `code` written between backticks into <code> elements.
+function formatText(text) {
+  return escapeHtml(text).replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function ferrymanSay(text, mood) {
+  ferrymanMood = mood;
+  ferrymanBubble.innerHTML = formatText(text);
+  ferrymanBubble.className = "ferryman__bubble" + (mood ? " is-" + mood : "");
+  if (mood === "success") {
+    ferrymanAvatar.classList.remove("is-happy");
+    void ferrymanAvatar.offsetWidth;
+    ferrymanAvatar.classList.add("is-happy");
+  }
+}
+
+function handleTestResults(results) {
+  latestResults = results;
+  recordDoneSteps(results.passed);
+  questsStatus.textContent = "";
+
+  const newlyPassed = results.passed.filter((stepId) => !celebratedSteps.has(stepId));
+  const brokenSteps = [...celebratedSteps].filter((stepId) => !results.passed.includes(stepId)).sort((first, second) => first - second);
+
+  if (newlyPassed.length > 0) {
+    newlyPassed.forEach((stepId) => celebratedSteps.add(stepId));
+    writeStorage("celebrated", JSON.stringify([...celebratedSteps]));
+    ferrymanSay(findStep(Math.max(...newlyPassed)).success, "success");
+    const nextStep = STEPS.find((step) => !results.passed.includes(step.id));
+    if (nextStep !== undefined) {
+      jumpToMission(nextStep);
+    }
+  } else if (brokenSteps.length > 0) {
+    const brokenStep = findStep(brokenSteps[0]);
+    ferrymanSay("Aïe ! « " + brokenStep.title + " » ne marche plus. Ton dernier changement a peut-être cassé quelque chose.", "warning");
+  } else if (ferrymanMood === "warning") {
+    ferrymanSay("Ouf, tout remarche ! On reprend là où on en était.", "");
+  }
+
+  renderQuests();
+  renderProgress();
+}
+
+function renderProgress() {
+  const doneCount = latestResults.passed.filter((stepId) => !findStep(stepId).bonus).length;
+  const bonusDone = STEPS.some((step) => step.bonus && latestResults.passed.includes(step.id));
+  progressFill.style.width = (doneCount / MAIN_STEP_COUNT) * 100 + "%";
+  progressLabel.textContent = doneCount + " / " + MAIN_STEP_COUNT + (bonusDone ? " ⭐" : "");
+}
+
+function findCurrentStep() {
+  const passed = new Set(latestResults.passed);
+  return STEPS.find((step) => !passed.has(step.id));
+}
+
+// The list under the game: one line per mission, without details.
+function renderQuests() {
+  const passed = new Set(latestResults.passed);
+  const currentStep = findCurrentStep();
+  questList.innerHTML = "";
+
+  for (const step of STEPS) {
+    const isDone = passed.has(step.id);
+    const isCurrent = currentStep !== undefined && step.id === currentStep.id;
+    const item = document.createElement("li");
+    item.className = "quest " + (isDone ? "quest--done" : isCurrent ? "quest--current" : "quest--locked");
+
+    const icon = isDone ? "✅" : isCurrent ? "👉" : step.bonus ? "⭐" : "🔒";
+    const title = isDone || isCurrent ? escapeHtml(step.title) + (step.bonus ? " (bonus)" : "") : step.bonus ? "Mission bonus secrète" : "Mission secrète";
+    const tag = isDone || isCurrent ? '<span class="quest__tag">' + escapeHtml(step.notion) + "</span>" : "";
+    item.innerHTML =
+      '<span class="quest__icon">' + icon + "</span>" +
+      '<span class="quest__title">' + step.id + ". " + title + tag + "</span>";
+    questList.append(item);
+  }
+
+  renderMission(currentStep);
+}
+
+// The card above the game: what is broken, where to look, and a hint.
+function renderMission(step) {
+  missionElement.innerHTML = "";
+
+  if (step === undefined) {
+    missionElement.className = "mission mission--done";
+    missionElement.innerHTML =
+      '<p class="mission__label">Toutes les missions sont finies</p>' +
+      '<h2 class="mission__title">🎉 Le jeu est réparé !</h2>' +
+      '<p class="mission__text">Dernier défi : finis l\'énigme avec 4 disques en 15 coups, sans l\'aide du moine.</p>';
+    return;
+  }
+
+  missionElement.className = "mission";
+  missionElement.innerHTML =
+    '<p class="mission__label">' + (step.bonus ? "⭐ Mission bonus : le jeu est déjà réparé, celle-ci est pour les plus courageux" : "Mission " + step.id + " sur " + MAIN_STEP_COUNT) + "</p>" +
+    '<h2 class="mission__title">' + escapeHtml(step.title) + "</h2>" +
+    '<p class="mission__kind">' + formatText(KIND_LABELS[step.kind]) + "</p>" +
+    '<dl class="mission__facts">' +
+    "<dt>Ce qui ne marche pas</dt><dd>" + formatText(step.symptom) + "</dd>" +
+    '<dt>Où chercher</dt><dd><button type="button" class="file-link">📍 Aller à la mission ' + step.id + " dans " + escapeHtml(step.file) + "</button>" +
+    ' <span class="mission__notion">Notion : ' + escapeHtml(step.notion) + "</span></dd>" +
+    "</dl>";
+
+  missionElement.querySelector(".file-link").addEventListener("click", () => jumpToMission(step));
+
+  const failure = latestResults.failure;
+  if (failure && failure.step === step.id) {
+    const check = document.createElement("p");
+    check.className = "mission__check";
+    check.innerHTML = "🔍 Le moine a essayé : " + formatText(failure.message);
+    missionElement.append(check);
+  }
+
+  const freeHint = document.createElement("p");
+  freeHint.className = "mission__hint";
+  freeHint.innerHTML = "💡 <strong>Indice :</strong> " + formatText(step.freeHint);
+  missionElement.append(freeHint, createJokerBox(step));
+}
+
+// The joker part of the mission card: a button to spend a joker, or the joker hint once it is bought.
+function createJokerBox(step) {
+  const box = document.createElement("div");
+  box.className = "joker-box";
+
+  if (score.jokerSteps.includes(step.id)) {
+    box.innerHTML = "<p>🃏 <strong>Indice joker :</strong> " + formatText(step.jokerHint) + "</p>";
+    return box;
+  }
+
+  const remaining = remainingJokers();
+  const text = document.createElement("p");
+  text.innerHTML = remaining > 0
+    ? "Toujours bloqué ? Un <strong>joker</strong> te donne un indice bien plus précis, mais il coûte <strong>" + POINTS.joker + " points</strong>. Il te reste <strong>" + remaining + " joker" + (remaining > 1 ? "s" : "") + "</strong> pour tout le jeu."
+    : "Tu as utilisé tous tes jokers. Relis l'indice, le commentaire de la mission et la console : tu vas trouver !";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "joker-button";
+  button.textContent = "🃏 Utiliser un joker (−" + POINTS.joker + " pts)";
+  button.disabled = remaining === 0;
+
+  let confirmTimer = null;
+  button.addEventListener("click", async () => {
+    if (!button.classList.contains("is-confirming")) {
+      button.classList.add("is-confirming");
+      button.textContent = "Sûr ? Clique encore pour perdre " + POINTS.joker + " points";
+      confirmTimer = setTimeout(() => {
+        button.classList.remove("is-confirming");
+        button.textContent = "🃏 Utiliser un joker (−" + POINTS.joker + " pts)";
+      }, 4000);
+      return;
+    }
+    clearTimeout(confirmTimer);
+    await useJoker(step);
+  });
+
+  box.append(text, button);
+  return box;
+}
+
+/* ---------- Score, jokers and the code for the teacher. ---------- */
+
+let score = null;
+let scoreKey = null;
+
+function toBase64Url(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(text) {
+  const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((text.length + 3) % 4);
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+async function getScoreKey() {
+  if (scoreKey === null) {
+    const rawKey = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(SCORE_SECRET));
+    scoreKey = await crypto.subtle.importKey("raw", rawKey, "AES-GCM", false, ["encrypt", "decrypt"]);
+  }
+  return scoreKey;
+}
+
+// Encrypts an object into a short text. Any change to the text makes it unreadable.
+async function seal(data) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await getScoreKey(), new TextEncoder().encode(JSON.stringify(data)));
+  const bytes = new Uint8Array(12 + encrypted.byteLength);
+  bytes.set(iv);
+  bytes.set(new Uint8Array(encrypted), 12);
+  return toBase64Url(bytes);
+}
+
+async function unseal(text) {
+  const bytes = fromBase64Url(text);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12) }, await getScoreKey(), bytes.slice(12));
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+function createFreshScore(tampered) {
+  return { version: 1, start: Date.now(), name: "", steps: {}, jokerSteps: [], tampered };
+}
+
+async function loadScore() {
+  const saved = readStorage("score", null);
+  if (saved === null) {
+    score = createFreshScore(false);
+    await saveScore();
+    return;
+  }
+  try {
+    score = Object.assign(createFreshScore(false), await unseal(saved));
+  } catch (error) {
+    score = createFreshScore(true);
+    await saveScore();
+  }
+}
+
+async function saveScore() {
+  writeStorage("score", await seal(score));
+}
+
+// All the missions done, bonus included (each one gives points).
+function missionsDone() {
+  return Object.keys(score.steps).length;
+}
+
+function mainMissionsDone() {
+  return Object.keys(score.steps).filter((stepId) => !findStep(Number(stepId))?.bonus).length;
+}
+
+function bonusDone() {
+  return STEPS.some((step) => step.bonus && score.steps[step.id] !== undefined);
+}
+
+function remainingJokers() {
+  return Math.max(0, JOKER_COUNT - score.jokerSteps.length);
+}
+
+function computePoints() {
+  return Math.max(0, missionsDone() * POINTS.mission - score.jokerSteps.length * POINTS.joker);
+}
+
+function showPointsToast(text) {
+  const toast = document.createElement("div");
+  toast.className = "points-toast";
+  toast.textContent = text;
+  document.body.append(toast);
+  setTimeout(() => toast.remove(), 2600);
+}
+
+// Records the missions that pass for the first time.
+async function recordDoneSteps(passedIds) {
+  const newIds = passedIds.filter((stepId) => score.steps[stepId] === undefined);
+  if (newIds.length === 0) {
+    return;
+  }
+  for (const stepId of newIds) {
+    score.steps[stepId] = Date.now();
+  }
+  await saveScore();
+  showPointsToast("+" + newIds.length * POINTS.mission + " points ⭐");
+  renderScore();
+}
+
+async function useJoker(step) {
+  if (remainingJokers() === 0 || score.jokerSteps.includes(step.id)) {
+    return;
+  }
+  score.jokerSteps.push(step.id);
+  await saveScore();
+  showPointsToast("−" + POINTS.joker + " points 🃏");
+  renderScore();
+  renderQuests();
+}
+
+async function createTeacherCode() {
+  return TEACHER_CODE_PREFIX + await seal({
+    name: score.name,
+    points: computePoints(),
+    missions: mainMissionsDone(),
+    bonus: bonusDone(),
+    jokers: score.jokerSteps.length,
+    jokerSteps: score.jokerSteps,
+    steps: score.steps,
+    start: score.start,
+    at: Date.now(),
+    tampered: score.tampered,
+  });
+}
+
+function renderScore() {
+  scorePointsElement.textContent = computePoints();
+
+  scoreJokersElement.innerHTML = "";
+  for (let index = 0; index < JOKER_COUNT; index++) {
+    const icon = document.createElement("span");
+    icon.className = "joker-icon" + (index < score.jokerSteps.length ? " is-used" : "");
+    icon.textContent = "🃏";
+    scoreJokersElement.append(icon);
+  }
+  scoreJokersElement.title = remainingJokers() + " joker(s) restant(s) sur " + JOKER_COUNT;
+
+  scoreCardElement.innerHTML =
+    "<h2>⭐ Mon score : " + computePoints() + " points</h2>" +
+    '<p class="score-card__rules">+' + POINTS.mission + " points par mission réussie · −" + POINTS.joker + " points par joker utilisé · " + JOKER_COUNT + " jokers pour tout le jeu</p>" +
+    "<p>" + mainMissionsDone() + " mission(s) réussie(s) sur " + MAIN_STEP_COUNT + (bonusDone() ? " + la mission bonus ⭐" : "") + " · " + score.jokerSteps.length + " joker(s) utilisé(s)</p>" +
+    (score.tampered ? '<p class="score-card__warning">⚠ Le score enregistré a été modifié : ce sera signalé à l\'enseignant.</p>' : "") +
+    '<div class="score-card__row"><input id="student-name" type="text" maxlength="60" autocomplete="off" placeholder="Ton prénom et ton nom">' +
+    '<button id="teacher-code-button" type="button" class="primary-button">Code pour l\'enseignant</button></div>' +
+    '<p class="score-card__note">À la fin de la séance, génère ce code et colle-le dans ton rendu.</p>' +
+    '<pre id="teacher-code-output" class="score-card__code" hidden></pre>';
+
+  const nameInput = document.getElementById("student-name");
+  nameInput.value = score.name;
+  nameInput.addEventListener("change", async () => {
+    score.name = nameInput.value.trim();
+    await saveScore();
+  });
+
+  document.getElementById("teacher-code-button").addEventListener("click", async () => {
+    score.name = nameInput.value.trim();
+    await saveScore();
+    if (score.name === "") {
+      nameInput.focus();
+      showPointsToast("Écris d'abord ton prénom et ton nom.");
+      return;
+    }
+    const code = await createTeacherCode();
+    const output = document.getElementById("teacher-code-output");
+    output.hidden = false;
+    output.textContent = code;
+    try {
+      await navigator.clipboard.writeText(code);
+      showPointsToast("Code copié ✅ Colle-le dans ton rendu.");
+    } catch (error) {
+      showPointsToast("Sélectionne le code et copie-le (Ctrl + C).");
+    }
+  });
+}
+
+/* ---------- Teacher space: open the page with #prof at the end of the address. ---------- */
+
+function formatDate(time) {
+  return new Date(time).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function renderTeacherSpace() {
+  const isTeacher = location.hash === "#prof";
+  teacherSpaceElement.hidden = !isTeacher;
+  if (!isTeacher) {
+    return;
+  }
+
+  teacherSpaceElement.innerHTML =
+    '<div class="teacher-space__panel">' +
+    "<h2>Espace enseignant</h2>" +
+    "<p>Colle les codes des étudiants (un par ligne), puis clique sur « Vérifier ».</p>" +
+    '<textarea id="teacher-input" spellcheck="false"></textarea>' +
+    '<div><button id="teacher-check" type="button" class="primary-button">Vérifier</button></div>' +
+    '<div id="teacher-output"></div>' +
+    "</div>";
+
+  document.getElementById("teacher-check").addEventListener("click", async () => {
+    const rows = [];
+    const codes = document.getElementById("teacher-input").value.split(/\s+/).filter(Boolean);
+    for (const code of codes) {
+      try {
+        rows.push({ ok: true, ...(await unseal(code.replace(TEACHER_CODE_PREFIX, ""))) });
+      } catch (error) {
+        rows.push({ ok: false, raw: code.slice(0, 24) + "…" });
+      }
+    }
+
+    const lines = rows.map((row) => {
+      if (!row.ok) {
+        return '<tr><td colspan="7">' + escapeHtml(row.raw) + '</td><td class="is-bad">✗ code invalide</td></tr>';
+      }
+      const lastStepTime = Math.max(row.start, ...Object.values(row.steps || {}));
+      return "<tr>" +
+        "<td>" + escapeHtml(row.name) + "</td>" +
+        '<td class="number">' + row.points + "</td>" +
+        '<td class="number">' + row.missions + " / " + MAIN_STEP_COUNT + (row.bonus ? " + ⭐ bonus" : "") + "</td>" +
+        '<td class="number">' + row.jokers + (row.jokerSteps.length ? " (missions " + row.jokerSteps.join(", ") + ")" : "") + "</td>" +
+        "<td>" + formatDate(row.start) + "</td>" +
+        "<td>" + formatDate(lastStepTime) + "</td>" +
+        "<td>" + formatDate(row.at) + "</td>" +
+        (row.tampered ? '<td class="is-bad">⚠ score modifié</td>' : "<td>OK</td>") +
+        "</tr>";
+    });
+
+    document.getElementById("teacher-output").innerHTML =
+      '<table class="teacher-table"><thead><tr><th>Nom</th><th class="number">Points</th><th class="number">Missions</th><th class="number">Jokers</th><th>Début</th><th>Dernière mission</th><th>Code généré</th><th>État</th></tr></thead>' +
+      "<tbody>" + lines.join("") + "</tbody></table>" +
+      "<p>« Début » est le moment où l'étudiant a ouvert le jeu pour la première fois dans ce navigateur. Un début bien après le début de la séance peut indiquer qu'il a effacé ses données pour repartir de zéro.</p>";
+  });
+}
+
+window.addEventListener("hashchange", renderTeacherSpace);
+
+/* ---------- Header buttons and keyboard. ---------- */
+
+let resetConfirmTimer = null;
+
+function restoreResetButton() {
+  clearTimeout(resetConfirmTimer);
+  resetButton.classList.remove("is-confirming");
+  resetButton.textContent = "↺ Code d'origine";
+}
+
+function resetAllFiles() {
+  for (const file of FILES) {
+    removeStorage("file." + file.name);
+    setFileContent(file.name, originalContents[file.name]);
+    contents[file.name] = originalContents[file.name];
+  }
+  celebratedSteps = new Set();
+  removeStorage("celebrated");
+  latestResults = { passed: [], failure: null };
+  ferrymanSay(INTRO_MESSAGE, "");
+  renderTabs();
+  renderQuests();
+  renderProgress();
+  runGame();
+}
+
+resetButton.addEventListener("click", () => {
+  if (!resetButton.classList.contains("is-confirming")) {
+    resetButton.classList.add("is-confirming");
+    resetButton.textContent = "Sûr ? Tout ton code sera effacé";
+    resetConfirmTimer = setTimeout(restoreResetButton, 4000);
+    return;
+  }
+  restoreResetButton();
+  resetAllFiles();
+});
+
+runButton.addEventListener("click", () => runGame());
+clearConsoleButton.addEventListener("click", clearConsole);
+
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    runGame();
+  }
+});
+
+/* ---------- Start. ---------- */
+
+async function start() {
+  await loadScore();
+  setupEditor();
+  const startStep = findCurrentStep();
+  if (startStep !== undefined) {
+    jumpToMission(startStep, false);
+  } else {
+    showFile(activeFileName);
+  }
+  ferrymanSay(celebratedSteps.size === 0 ? INTRO_MESSAGE : WELCOME_BACK_MESSAGE, "");
+  renderScore();
+  renderQuests();
+  renderProgress();
+  renderTeacherSpace();
+  runGame();
+}
+
+start();
+</script>
+</body>
+</html>
