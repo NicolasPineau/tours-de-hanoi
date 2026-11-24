@@ -1348,7 +1348,7 @@ const STEPS = [
     notion: "Conditions et calculs",
     file: "jeu.js",
     symptom: "Mets tous les disques sur la tour de droite : la partie ne se termine jamais.",
-    freeHint: "La partie est gagnée quand la tour de droite (`this.tours[2]`) contient autant de disques qu'au départ (`this.nbDisquesAuDepart`). Et pour la prophétie : en JavaScript, « 2 puissance n » s'écrit `2 ** n`.",
+    freeHint: "La partie est gagnée quand la tour de droite (`this.tours[2]`) contient autant de disques qu'au départ (`this.nbDisquesAuDepart`). Attention, `this.tours[2]` est une tour, pas un nombre : pense à ce que tu as fait pour `nbDisques()`. Et pour la prophétie : « 2 puissance n » s'écrit `2 ** n` (et pas `n ** 2`, qui veut dire n au carré).",
     jokerHint: "`estGagne()` : `return this.tours[2].disques.length === this.nbDisquesAuDepart;`. `coupsMinimum` : `return 2 ** this.nbDisquesAuDepart - 1;`",
     success: "La prophétie est accomplie ! Il ne me reste qu'à écrire tes coups dans le grand livre…",
   },
@@ -1933,7 +1933,10 @@ function iframeTestHarness(runId, stepCount) {
       }
       playMoves(SOLUTION_3.slice(6));
       if (!jeu.estGagne()) {
-        fail("les 3 disques sont sur la tour de droite, mais `estGagne()` renvoie false.");
+        const source = String(Jeu.prototype.estGagne);
+        const comparesTower = /tours\[2\]\s*(===|==|>=|<=|>|<)/.test(source) || /(===|==)\s*this\.tours\[2\]\s*[;)]/.test(source);
+        fail("les 3 disques sont sur la tour de droite, mais `estGagne()` renvoie false." +
+          (comparesTower ? " Attention : `this.tours[2]` est une tour (un objet `Tour`), pas un nombre. Comment savoir combien de disques elle contient ?" : ""));
       }
       afficherJeu();
       if (document.querySelector("#ecran-fin").hidden) {
@@ -1945,11 +1948,21 @@ function iframeTestHarness(runId, stepCount) {
       if (jeu.estGagne()) {
         fail("tous les disques sont sur la tour du milieu : ce n'est pas gagné, il faut qu'ils soient sur la tour de droite.");
       }
+      const minimums = {};
       for (const n of [3, 5]) {
         newRound(n);
+        minimums[n] = jeu.coupsMinimum;
+      }
+      for (const n of [3, 5]) {
         const expected = 2 ** n - 1;
-        if (jeu.coupsMinimum !== expected) {
-          fail("avec " + n + " disques, `coupsMinimum` devrait valoir " + expected + ". Il vaut " + jeu.coupsMinimum + ".");
+        if (minimums[n] !== expected) {
+          let advice = "";
+          if (minimums[3] === minimums[5]) {
+            advice = " Ta formule donne le même résultat avec 3 et avec 5 disques : elle doit dépendre du nombre de disques (`this.nbDisquesAuDepart`).";
+          } else if (minimums[n] === n ** 2 - 1) {
+            advice = " Tu as calculé n au carré (n ** 2). La prophétie dit « 2 puissance n » : c'est 2 qui est élevé à la puissance n.";
+          }
+          fail("avec " + n + " disques, `coupsMinimum` devrait valoir " + expected + " (2 × 2 × … " + n + " fois, moins 1). Il vaut " + minimums[n] + "." + advice);
         }
       }
     },
