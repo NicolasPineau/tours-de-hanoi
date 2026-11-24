@@ -1959,6 +1959,8 @@ function iframeTestHarness(runId, stepCount) {
           let advice = "";
           if (minimums[3] === minimums[5]) {
             advice = " Ta formule donne le même résultat avec 3 et avec 5 disques : elle doit dépendre du nombre de disques (`this.nbDisquesAuDepart`).";
+          } else if (minimums[n] === 3 ** n - 1) {
+            advice = " Tu as calculé 3 puissance n : 3, c'est le nombre de tours. La prophétie dit « 2 puissance n » : avec un disque de plus, le nombre de coups double.";
           } else if (minimums[n] === n ** 2 - 1) {
             advice = " Tu as calculé n au carré (n ** 2). La prophétie dit « 2 puissance n » : c'est 2 qui est élevé à la puissance n.";
           }
